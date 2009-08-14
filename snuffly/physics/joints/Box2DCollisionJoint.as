@@ -1,28 +1,38 @@
 ﻿package snuffly.physics.joints
 {
 	import snuffly.physics.core.*;
+	import Box2D.Dynamics.*;
+	import Box2D.Collision.Shapes.*;
+	import Box2D.Common.Math.*;
+	import flash.display.Sprite;
 	//Взаимодействие с Box2D миром(и шаг симуляции Box2D)
 	public class Box2DCollisionJoint implements IDrawable , IJoint
 	{
 		public var friction:Number;				//Трение
 		public var restitution:Number;			//Упругость
+		public var r:Number;					//Радиус частиц
+		public var m:Number;					//Масса частиц(для рассчёта импульса)
+		public var world:b2World;				//Box2D мир(уже подготовленный)
 		protected var pt:Vector.<BaseParticle>;
 		protected var ptCount:int;
+		protected var sensors:Vector.<b2Body>;				//Объекты-сенсоры в Box2D, соответсвующие частицам
+		protected var sensorContacts:Vector.<Array>;		//Стек контактов i-го сенсора
+		protected var sensorContactResults:Vector.<Array>;	//Стек результатов контактов i-го сенсора
+		protected var minv:Number;
+		
+		static protected const RAD_TO_DEG=180/Math.PI;
+		
+		public var visible:Boolean;		//Рисуем ли?
 		// ========================================================== //
-		public function Box2DCollisionJoint(particles:IParticleGroup,friction:Number=0.95,restitution:Number=0.2, visible=false,wallColor:uint=0xCCCCCC,wallAlpha:Number=1):void
+		public function Box2DCollisionJoint(particles:IParticleGroup,world:b2World,r:Number,m:Number=0.1,friction:Number=0.95,restitution:Number=0.2, visible=true):void
 		{
-			this.canvas=canvas;
-			this._cx=cx;
-			this._cy=cy;
-			this._nx=nx
-			this._ny=ny;
-			this.friction=friction
-			this.damping=damping;
-			this.wallColor=wallColor;
-			this.wallAlpha=wallAlpha;
+			this.friction=friction;
+			this.restitution=restitution;
+			this.r=r;
+			this.m=m;
+			minv=1/m;
+			this.world=world;
 			this.visible=visible;
-			normalize();
-			recalcPath();
 			particles.addEventListener(ParticleGroupEvent.CHANGED,particlesChanged);
 			particles.addEventListener(ParticleGroupEvent.KILLED,particlesKilled);
 		}
@@ -32,6 +42,36 @@
 		{
 			pt=event.particles;
 			ptCount=pt.length;
+			sensors=new Vector.<b2Body>();
+			sensorContacts=new Vector.<Array>();
+			sensorContactResults=new Vector.<Array>();
+			
+			var i:int;
+			var body:b2Body;
+			var bodyDef:b2BodyDef;
+			var circleDef:b2CircleDef;
+			var density:Number=m/(Math.PI*r*r);
+			for(i=0;i<ptCount;i++)
+			{
+				bodyDef = new b2BodyDef();
+				bodyDef.fixedRotation=true;
+				bodyDef.userData=i;
+				circleDef = new b2CircleDef();
+				circleDef.radius = r;
+				circleDef.density = density;
+				circleDef.friction = friction;
+				circleDef.restitution = restitution;
+				//circleDef.isSensor = true;
+				circleDef.filter.groupIndex = -1;		//игнорируем другие частицы
+				body = world.CreateBody(bodyDef);
+				body.CreateShape(circleDef);
+				body.SetMassFromShapes();
+				body.hasGravity=false;
+				sensors[i]=body;
+				sensorContactResults[i]=new Array();
+				sensorContacts[i]=new Array();
+			}
+			world.SetContactListener(new SensorContactListener(sensorContacts,sensorContactResults));
 		}
 		// ========================================================== //
 		//Частицы уничтожены
@@ -39,67 +79,9 @@
 		{
 			pt=null;
 			ptCount=0;
-		}
-		// ========================================================== //
-		//Нормируем вектор нормали
-		protected function normalize():void 
-		{
-			var n:Number;
-			n=1/(_nx*_nx+_ny*_ny);
-			_nx*=n;
-			_ny*=n;
-		}
-		// ========================================================== //
-		//Изменение нормали
-		public function setNormal(_nx:Number,_ny:Number):void 
-		{
-			this._nx=_nx;
-			this._ny=_ny;
-			normalize();
-			recalcPath();
-		}
-		// ========================================================== //
-		//Изменение точки на поверхности
-		public function setC(_cx:Number,_cy:Number):void 
-		{
-			this._cx=_cx;
-			this._cy=_cy;
-			recalcPath();
-		}
-		// ========================================================== //
-		//Изменение нормали и точки на поверхности
-		public function setNormalAndC(_nx:Number,_ny:Number,_cx:Number,_cy:Number):void 
-		{
-			this._nx=_nx;
-			this._ny=_ny;
-			normalize();
-			this._cx=_cx;
-			this._cy=_cy;
-			recalcPath();
-		}
-		// ========================================================== //
-		//Нормаль - координата x
-		public function get nx():Number 
-		{
-			return _nx;
-		}
-		// ========================================================== //
-		//Нормаль - координата y
-		public function get ny():Number 
-		{
-			return _ny;
-		}
-		// ========================================================== //
-		//Точка на поверхности стены - координата x
-		public function get cx():Number 
-		{
-			return _cx;
-		}
-		// ========================================================== //
-		//Точка на поверхности стены - координата y
-		public function get cy():Number 
-		{
-			return _cy;
+			
+										//TODO: Сделать удаление объектов из мира!!!!!
+										
 		}
 		// ========================================================== //
 		public function beforeApply(iteration:int,iterations:int):void
@@ -108,32 +90,86 @@
 		// ========================================================== //
 		public function applyJoint(iteration:int,iterations:int):void
 		{
-			var i:int;
-			var p:BaseParticle;
-			var s:Number;
-			var v1:Number;
-			var v2:Number;
-			var dx:Number;
-			var dy:Number;
-			var b:Boolean;
-			b=iteration==0;
-			for (i=0; i<ptCount; i++)
+			if(iteration+1==iterations)
 			{
-				p=pt[i];
-				s=(_cx-p.xx)*_nx+(_cy-p.yy)*_ny;
-				if(s>0)
+				var p:BaseParticle;
+				var s:b2Body;
+				var i:int;
+				var vec:b2Vec2;
+				
+				for(i=0;i<ptCount;i++)
 				{
-					p.xx+=_nx*s;
-					p.yy+=_ny*s;
-					if(b)
+					p=pt[i];
+					s=sensors[i];
+					s.SetPosition(new b2Vec2(p.xx,p.yy));
+					s.SetLinearVelocity(new b2Vec2(p.vx,p.vy));
+					s.ApplyForceToCenter(p.nx*m,p.ny*m);
+				}
+				world.Step(0.01, 5,10);
+				/*for(i=0;i<ptCount;i++)
+				{
+					p=pt[i];
+					s=sensors[i];
+					vec=s.GetPosition();
+					p.xx=vec.x;
+					p.yy=vec.y;
+					vec=s.GetLinearVelocity();
+					p.vx=vec.x;
+					p.vy=vec.y;
+				}*/
+				var contactStack:Array;
+				var currentContact:SensorContactPoint;
+				var currentContactResult:SensorContactResult;
+				var separation:Number;
+				var normal:b2Vec2;
+				var dx:Number;
+				var dy:Number;
+				var nx:Number;
+				var ny:Number;
+				var ts:Number;
+				var ns:Number;
+				for(i=0;i<ptCount;i++)
+				{
+					p=pt[i];
+					s=sensors[i];
+					/*contactStack=sensorContacts[i];
+					dx=0;
+					dy=0;
+					currentContact = contactStack.pop();
+					while(currentContact)
 					{
-						dx=p.vx;
-						dy=p.vy;
-						v1=-damping*(dx*_nx+dy*_ny);
-						v2=friction*(dx*_ny-dy*_nx);
-						p.vx=_nx*v1+_ny*v2;
-						p.vy=_ny*v1-_nx*v2;
+						normal=currentContact.normal;
+						separation = currentContact.separation;
+						dx+=normal.x*separation;
+						dy+=normal.y*separation;
+						currentContact = contactStack.pop();
 					}
+					p.xx+=dx;
+					p.yy+=dy;*/
+					contactStack=sensorContactResults[i];
+					if(contactStack.length>0)
+					{
+						vec=s.GetPosition();
+						p.xx=vec.x;
+						p.yy=vec.y;
+					}
+					dx=0;
+					dy=0;
+					//contactStack=sensorContactResults[i];
+					currentContactResult = contactStack.pop();
+					while(currentContactResult)
+					{
+						normal=currentContactResult.normal;
+						nx=normal.x;
+						ny=normal.y;
+						ns=currentContactResult.normalImpulse;
+						ts=currentContactResult.tangentImpulse;
+						dx=nx*ns+ny*ts;
+						dy=ny*ns-nx*ts;
+						currentContactResult = contactStack.pop();
+					}
+					p.vx+=dx*minv;
+					p.vy+=dy*minv;
 				}
 			}
 		}
@@ -142,211 +178,138 @@
 		{
 		}
 		// ========================================================== //
-		//Рисуем стену
+		//Рисуем объекты
 		public function draw():void
 		{
 			if (visible)
 			{
-				canvas.graphics.beginFill(wallColor,wallAlpha);
-				canvas.graphics.drawPath(command,coord);
-				canvas.graphics.endFill();
-			}
-		}
-		// ========================================================== //
-		//Пересчёт области, изображающей полуплоскость
-		private function recalcPath():void
-		{
-			var w:Number;
-			var h:Number;
-			var b1:Boolean;
-			var b2:Boolean;
-			var b3:Boolean;
-			var b4:Boolean;
-			w=canvas.stage.stageWidth;
-			h=canvas.stage.stageHeight;
-			b1=(_cx*_nx     +_cy*_ny>0);
-			b2=((_cx-w)*_nx +_cy*_ny>0);
-			b3=((_cx-w)*_nx +(_cy-h)*_ny>0);
-			b4=(_cx*_nx     +(_cy-h)*_ny>0);
-			
-			command=new Vector.<int>;
-			coord=new Vector.<Number>;
-			
-			if(!(b1 || b2 || b3 || b4))
-				return;
+				var body:b2Body;
+				var userdata:*;
+				var pos:b2Vec2;
+				var sprite:Sprite;
 				
-			command.push(GraphicsPathCommand.MOVE_TO);
-			if(b1 && b2 && b3 && b4)
-			{
-				coord.push(0,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,0);
-				return;
-			}
-			
-			if(b4 && !b1 && b2)
-			{
-				coord.push(w,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,_cy+_cx*_ny/_nx);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+_cy*_nx/_ny,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,0);
-				return;
-			}
-			
-			if(b1 && !b2 && b3)
-			{
-				trace(4);
-				coord.push(w,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+_cy*_ny/_nx,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,_cy+(_cx-w)*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,h);
-				return;
-			}
-			
-			if(b2 && !b3 && b4)
-			{
-				coord.push(0,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,_cy+(_cx-w)*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+(_cy-h)*_ny/_nx,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,h);
-				return;
-			}
-			
-			if(b3 && !b4 && b1)
-			{
-				coord.push(0,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+(_cy-h)*_ny/_nx,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,_cy+_cx*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,h);
-				return;
-			}
-			
-			if(!b4 && b1 && !b2)
-			{
-				coord.push(0,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+_cy*_ny/_nx,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,_cy+_cx*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,0);
-				return;
-			}
-			
-			if(!b1 && b2 && !b3)
-			{
-				coord.push(w,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,_cy+(_cx-w)*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+_cy*_ny/_nx,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,0);
-				return;
-			}
-			
-			if(!b2 && b3 && !b4)
-			{
-				coord.push(w,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+(_cy-h)*_ny/_nx,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,_cy+(_cx-w)*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,h);
-				return;
-			}
-			
-			if(b1 && b2)
-			{
-				coord.push(0,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,_cy+(_cx-w)*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,_cy+_cx*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,0);
-				return;
-			}
-			
-			if(b2 && b3)
-			{
-				coord.push(w,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+(_cy-h)*_ny/_nx,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+_cy*_ny/_nx,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,0);
-				return;
-			}
-			
-			if(b3 && b4)
-			{
-				coord.push(w,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,_cy+_cx*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,_cy+(_cx-w)*_nx/_ny);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(w,h);
-				return;
-			}
-			
-			if(b4 && b1)
-			{
-				coord.push(0,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+_cy*_ny/_nx,0);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(_cx+(_cy-h)*_ny/_nx,h);
-				command.push(GraphicsPathCommand.LINE_TO);
-				coord.push(0,h);
-				return;
+				for(body = world.GetBodyList(); body; body = body.GetNext())
+				{
+					userdata=body.GetUserData();
+					if(userdata is Sprite)
+					{
+						sprite = userdata as Sprite;
+						pos=body.GetPosition();
+						sprite.x = pos.x;
+						sprite.y = pos.y;
+						sprite.rotation = body.GetAngle() * RAD_TO_DEG;
+					}
+				}
 			}
 		}
 		// ========================================================== //
 	}
+}
+
+import Box2D.Collision.Shapes.*;
+import Box2D.Common.Math.*;
+class SensorContactPoint
+{
+	public var separation:Number;
+	public var position:b2Vec2;
+	public var normal:b2Vec2;
+	// ========================================================== //
+	public function SensorContactPoint (separation:Number, position:b2Vec2, normal:b2Vec2)
+	{
+		this.separation = separation;
+		this.position = position;
+		this.normal = normal;
+	}
+	// ========================================================== //
+}
+
+import Box2D.Common.Math.*;
+class SensorContactResult
+{
+	public var normal:b2Vec2;
+	public var normalImpulse:Number;
+	public var tangentImpulse:Number;
+	// ========================================================== //
+	public function SensorContactResult(normal:b2Vec2, normalImpulse:Number, tangentImpulse:Number)
+	{
+		this.normal = normal;
+		this.normalImpulse = normalImpulse;
+		this.tangentImpulse = tangentImpulse;
+	}
+	// ========================================================== //
+}
+
+import Box2D.Dynamics.*;
+import Box2D.Collision.*;
+import Box2D.Collision.Shapes.*;
+import Box2D.Common.Math.*;
+import Box2D.Dynamics.Contacts.*;
+class SensorContactListener extends b2ContactListener
+{
+	public var sensorContacts:Vector.<Array>;
+	public var sensorContactResults:Vector.<Array>;
+	// ========================================================== //
+	public function SensorContactListener(sensorContacts:Vector.<Array>,sensorContactResults:Vector.<Array>):void
+	{
+		this.sensorContacts=sensorContacts;
+		this.sensorContactResults=sensorContactResults;
+	}
+	// ========================================================== //
+	override public function Add(point:b2ContactPoint):void
+	{
+		var shape1:b2Shape = point.shape1;
+		var shape2:b2Shape = point.shape2;
+		var userdata:*;
+		var sensorid:int;
+		var separation:Number = point.separation;
+		var position:b2Vec2 = point.position.Copy();
+		var normal:b2Vec2 = point.normal.Copy();
+		userdata = shape1.GetBody().GetUserData();
+		if(userdata is int)
+		{
+			separation=0.1-separation;
+			sensorid=int(userdata);
+		}
+		else
+		{			
+			userdata = shape2.GetBody().GetUserData();
+			if(userdata is int)
+			{
+				separation-=0.1;
+				sensorid=int(userdata);
+			}
+			else
+				return;
+		}
+		
+		//sensorContacts[sensorid].push(new SensorContactPoint(separation,position,normal));
+	}
+	// ========================================================== //
+	override public function Result(point:b2ContactResult):void
+	{
+		var shape1:b2Shape = point.shape1;
+		var shape2:b2Shape = point.shape2;
+		var userdata:*;
+		var sensorid:int;
+		var normalImpulse:Number=point.normalImpulse;
+		var tangentImpulse:Number=point.tangentImpulse;
+		var normal:b2Vec2 = point.normal.Copy();
+		userdata = shape1.GetBody().GetUserData();
+		if(userdata is int)
+		{
+			normalImpulse=-normalImpulse;
+			tangentImpulse=-tangentImpulse;
+			sensorid=int(userdata);
+		}
+		else
+		{			
+			userdata = shape2.GetBody().GetUserData();
+			if(userdata is int)
+				sensorid=int(userdata);
+			else
+				return;
+		}
+		sensorContactResults[sensorid].push(new SensorContactResult(normal,normalImpulse,tangentImpulse));
+	}
+	// ========================================================== //
 }

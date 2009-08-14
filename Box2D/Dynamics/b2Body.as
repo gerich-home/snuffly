@@ -534,6 +534,14 @@ public class b2Body
 		return m_angularVelocity;
 	}
 
+	public function ApplyForceToCenter(x:Number,y:Number) : void{
+		if (IsSleeping())
+		{
+			WakeUp();
+		}
+		m_force.x += x;
+		m_force.y += y;
+	}
 	/**
 	* Apply a force at a world point. If the force is not
 	* applied at the center of mass, it will generate a torque and
@@ -1098,7 +1106,8 @@ public class b2Body
 		m_sweep.a = m_sweep.a0;
 		SynchronizeTransform();
 	}
-
+	
+	public var hasGravity:Boolean = true;
 	b2internal var m_flags:uint;
 	private var m_type:int;
 	

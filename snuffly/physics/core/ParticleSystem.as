@@ -79,15 +79,15 @@
 			var j:int;
 			var k:int;
 			
-			for (i=0; i<ptCount; i++)			pt[i].resetPowers();
-			for (i=0; i<powersCount; i++)		powers[i].applyPower();
-			
 			for (i=0; i<ptCount; i++)
 			{
 				p=pt[i];
 				if(!p.isStatic)
 					p.integrate();
 			}
+			
+			for (i=0; i<ptCount; i++)			pt[i].resetPowers();
+			for (i=0; i<powersCount; i++)		powers[i].applyPower();
 			
 			for (i=0; i<iterations; i++)
 			{

@@ -37,6 +37,10 @@ public class b2Settings{
 	static public const b2_pi:Number = Math.PI;
 
 
+    /**
+    *   anti physycs scale
+    */
+	static public const b2_pixelScale:int = 30;
 
 	// Collision
     /**
@@ -67,7 +71,7 @@ public class b2Settings{
 	* A small length used as a collision and constraint tolerance. Usually it is
 	* chosen to be numerically significant, but visually insignificant.
 	*/
-	static public const b2_linearSlop:Number = 0.005;	// 0.5 cm
+	static public const b2_linearSlop:Number = 0.005 * b2_pixelScale;	// 0.5 cm
 	
 	/**
 	* A small angle used as a collision and constraint tolerance. Usually it is
@@ -97,13 +101,13 @@ public class b2Settings{
 	* A velocity threshold for elastic collisions. Any collision with a relative linear
 	* velocity below this threshold will be treated as inelastic.
 	*/
-	static public const b2_velocityThreshold:Number = 1.0;		// 1 m/s
+	static public const b2_velocityThreshold:Number = 1.0 * b2_pixelScale;		// 1 m/s
 	
 	/**
 	* The maximum linear position correction used when solving constraints. This helps to
 	* prevent overshoot.
 	*/
-	static public const b2_maxLinearCorrection:Number = 0.2;	// 20 cm
+	static public const b2_maxLinearCorrection:Number = 0.2 * b2_pixelScale;	// 20 cm
 	
 	/**
 	* The maximum angular position correction used when solving constraints. This helps to
@@ -115,7 +119,7 @@ public class b2Settings{
 	* The maximum linear velocity of a body. This limit is very large and is used
 	* to prevent numerical problems. You shouldn't need to adjust this.
 	*/
-	static public const b2_maxTranslation:Number = 2.0;
+	static public const b2_maxTranslation:Number = 2.0 * b2_pixelScale;
 	static public const b2_maxTranslationSquared:Number = b2_maxTranslation * b2_maxTranslation;
 	
 	/**
@@ -159,7 +163,7 @@ public class b2Settings{
 	/**
 	* A body cannot sleep if its linear velocity is above this tolerance.
 	*/
-	static public const b2_linearSleepTolerance:Number = 0.01;			// 1 cm/s
+	static public const b2_linearSleepTolerance:Number = 0.01 * b2_pixelScale;			// 1 cm/s
 	/**
 	* A body cannot sleep if its angular velocity is above this tolerance.
 	*/
