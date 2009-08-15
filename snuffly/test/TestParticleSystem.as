@@ -59,7 +59,7 @@
 			
 			//powers.push(new FluidFrictionPower(g1,0.02));
 			powers.push(new Gravity(g1,0.2));
-			powers.push(new MousePower(g1,60,0.3,container));
+			powers.push(new MousePower(g1,60,1,container));
 			g1.notifyGroupChanged();		//событие изменения группы частиц
 			
 			iterations=1;	//=1 потому что нет таких Joint'ов которые надо несколько раз прогонять
@@ -98,6 +98,7 @@
 			var body:b2Body;
 			var bodyDef:b2BodyDef;
 			var boxDef:b2PolygonDef;
+			var circleDef:b2CircleDef;
 			
 			worldAABB= new b2AABB();
 			worldAABB.lowerBound.Set(-100.0*b2Settings.b2_pixelScale, -100.0*b2Settings.b2_pixelScale);
@@ -133,6 +134,7 @@
 			body.SetMassFromShapes();
 			
 			var i:int;
+			/*
 			var sizeX:Number;
 			var sizeY:Number;
 			for(i=0;i<1;i++)
@@ -155,9 +157,31 @@
 				body = world.CreateBody(bodyDef);
 				body.CreateShape(boxDef);
 				body.SetMassFromShapes();
+			}*/
+			
+			var r:Number;
+			for(i=0;i<1;i++)
+			{
+				bodyDef = new b2BodyDef();
+				r = (Math.random() + 0.5)* b2Settings.b2_pixelScale;
+				bodyDef.position.x = (Math.random() * 15 + 5)* b2Settings.b2_pixelScale;
+				bodyDef.position.y = (Math.random() * 10)* b2Settings.b2_pixelScale-r-128;
+				bodyDef.angle = Math.random() * 2*Math.PI;
+				circleDef = new b2CircleDef();
+				circleDef.radius=r;
+				circleDef.density = 1.0/(b2Settings.b2_pixelScale*b2Settings.b2_pixelScale);
+				circleDef.friction = 0.5;
+				circleDef.restitution = 0.2;
+				bodyDef.userData = new Ball();
+				bodyDef.userData.width = r * 2; 
+				bodyDef.userData.height = r * 2; 
+				container.addChild(bodyDef.userData);
+				body = world.CreateBody(bodyDef);
+				body.CreateShape(circleDef);
+				body.SetMassFromShapes();
 			}
 			
-			var Box2DJoint:Box2DCollisionJoint=new Box2DCollisionJoint(g,world,1,5);
+			var Box2DJoint:Box2DCollisionJoint=new Box2DCollisionJoint(g,world,1,10);
 			addDrawableJoint(Box2DJoint);
 		}
 		// ========================================================== //

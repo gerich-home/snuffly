@@ -66,7 +66,7 @@
 				body = world.CreateBody(bodyDef);
 				body.CreateShape(circleDef);
 				body.SetMassFromShapes();
-				body.hasGravity=false;
+				body.isNative=false;
 				sensors[i]=body;
 				sensorContactResults[i]=new Array();
 				sensorContacts[i]=new Array();
@@ -103,9 +103,9 @@
 					s=sensors[i];
 					s.SetPosition(new b2Vec2(p.xx,p.yy));
 					s.SetLinearVelocity(new b2Vec2(p.vx,p.vy));
-					s.ApplyForceToCenter(p.nx*m,p.ny*m);
+					s.ApplyForceToCenter(p.nx,p.ny);
 				}
-				world.Step(0.01, 5,10);
+				world.Step(0.05, 5,10);
 				/*for(i=0;i<ptCount;i++)
 				{
 					p=pt[i];
@@ -146,7 +146,7 @@
 					}
 					p.xx+=dx;
 					p.yy+=dy;*/
-					contactStack=sensorContactResults[i];
+					/*contactStack=sensorContactResults[i];
 					if(contactStack.length>0)
 					{
 						vec=s.GetPosition();
@@ -169,7 +169,16 @@
 						currentContactResult = contactStack.pop();
 					}
 					p.vx+=dx*minv;
-					p.vy+=dy*minv;
+					p.vy+=dy*minv;*/
+					if(sensorContactResults[i].length>0)
+					{
+						vec=s.GetPosition();
+						p.xx=vec.x;
+						p.yy=vec.y;
+						vec=s.GetLinearVelocity();
+						p.vx=vec.x;
+						p.vy=vec.y;
+					}
 				}
 			}
 		}

@@ -1107,7 +1107,7 @@ public class b2Body
 		SynchronizeTransform();
 	}
 	
-	public var hasGravity:Boolean = true;
+	public var isNative:Boolean = true;
 	b2internal var m_flags:uint;
 	private var m_type:int;
 	
