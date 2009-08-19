@@ -75,6 +75,9 @@
 		public var visible:Boolean;			//Рисуем ли?
 		public var canvas:Bitmap;			//Где рисуем
 		
+		public var offsetX:Number;			//Смешение для корректировки прорисовки
+		public var offsetY:Number;
+		
 		protected var eventDispatcher:EventDispatcher;
 		// ========================================================== //
 		public function Jello(canvas:Bitmap,particles:IParticleGroup,spacing:Number=20,imageRadius:Number=30,rest_density:Number=1,treshold:uint=0xA0000000, visible:Boolean=true,k:Number=0.02,k_near:Number=2,kspring:Number=0.1,stretch_speed:Number=0.3,stretch_treshold:Number=0.3,compress_speed:Number=0.1,compress_treshold:Number=0.1,viscosity_a:Number=0.5,viscosity_b:Number=0.01,max_springs:int=20):void
@@ -107,6 +110,9 @@
 			spring_list				=new Spring();
 			spring_pool				=new Spring();
 			
+			this.offsetX			=0;
+			this.offsetY			=0;
+			
 			eventDispatcher = new EventDispatcher(this);
 			
 			canvas.stage.addEventListener(KeyboardEvent.KEY_DOWN,keyDown);
@@ -120,7 +126,7 @@
 			var i:int;
 			var j:int;
 			var spring_iji:Vector.<Spring>;
-			pt			=Vector.<b2Body>(event.particles);
+			pt			=event.particles;
 			ptCount		=pt.length;
 			ij			=new Vector.<Vector.<int>>(ptCount,true);
 			spring_ij	=new Vector.<Vector.<Spring>>(ptCount,true);
@@ -929,8 +935,8 @@
 			for (i=0; i<ptCount; i++)
 			{
 				p=pt[i];
-				pnt.x=px[i]-imageRadius;
-				pnt.y=py[i]-imageRadius;
+				pnt.x=px[i]-imageRadius+offsetX;
+				pnt.y=py[i]-imageRadius+offsetY;
 				bmp.copyPixels(p.GetUserData() as BitmapData,r1,pnt,null,null,true);
 			}
 			var rect:Rectangle=new Rectangle(0, 0, w, h);

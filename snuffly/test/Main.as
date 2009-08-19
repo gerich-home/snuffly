@@ -5,9 +5,7 @@
 	import flash.display.Sprite;
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
-	import flash.events.Event;
-	import flash.events.KeyboardEvent;
-	import flash.events.TimerEvent;
+	import flash.events.*;
 	import flash.ui.Keyboard;
 	import flash.display.MovieClip;
 	import flash.utils.*;
@@ -33,24 +31,33 @@
 			testFPS = new TestFPS(gametimer);
 			testFPS.x = 370;
 			
-			addChild(container);
-			//container.
 			addChild(fluidbmp);
-			fluidbmp.x=0;
-			fluidbmp.y=0;
-			fluidbmp.visible=true;
+			addChild(container);
+			container.mouseEnabled=true;
+			container.mouseChildren=false;
 			addChild(testFPS);
 			
+			stage.focus = container;
+			stage.stageFocusRect=false;
 			stage.frameRate = 24;
 			
 			level=new TestLevel(container,fluidbmp);
 			
-			addEventListener(Event.ENTER_FRAME, function():void {
-											level.draw();
+			stage.addEventListener(FocusEvent.FOCUS_OUT, function(e:Event):void {
+											if(e.target==container)
+												stage.focus = container;
 										});
-										
-			gametimer.addEventListener(TimerEvent.TIMER, function():void {
-											level.step();
+			
+						
+			gametimer.addEventListener(TimerEvent.TIMER, function starter():void {
+										gametimer.removeEventListener(TimerEvent.TIMER,starter);
+										level.step();
+										gametimer.addEventListener(TimerEvent.TIMER, function():void {
+																		level.step();
+																	});
+										addEventListener(Event.ENTER_FRAME, function():void {
+																		level.draw();
+																	});
 										});
 			
 			stage.addEventListener(KeyboardEvent.KEY_DOWN, function(e:KeyboardEvent):void {

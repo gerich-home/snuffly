@@ -37,13 +37,10 @@
 		//Шаг симуляции физики
 		public function step():void
 		{
-			var t1:int=getTimer();
 			var i:int;
 			for(i=0;i<powersCount;i++)
 				powers[i].applyPower();
-			var t2:int=getTimer()-t1;
 			world.Step(dt,velocityIterations,positionIterations);
-			trace(t2,getTimer()-t1);
 		}
 		// ========================================================== //
 		//Прорисовка
