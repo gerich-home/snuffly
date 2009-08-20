@@ -147,7 +147,7 @@
 			vy			=new Vector.<Number>(ptCount,true);
 			pt_springs	=new Vector.<int>(ptCount,true);
 			groupqueue	=new Vector.<int>(ptCount,true);
-			activeParticles=new Vector.<b2Body>(ptCount,true);
+			activeParticles=pt;
 			activeGroup	=new Vector.<Boolean>(ptCount,true);
 			if(ptCount>0)
 			{

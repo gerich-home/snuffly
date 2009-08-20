@@ -1,6 +1,7 @@
 ﻿package snuffly.game.core
 {
 	import Box2D.Dynamics.b2Body;
+	import Box2D.Common.Math.b2Vec2;
 	import flash.events.Event;
 	//Событие изменения группы
 	public class ParticleGroupEvent extends Event
@@ -47,7 +48,7 @@
 			return _cy;
 		}
 		// ========================================================== //
-		private function get calcCM():void
+		private function calcCM():void
 		{ 
 			var i:int;
 			var pt:Vector.<b2Body>;

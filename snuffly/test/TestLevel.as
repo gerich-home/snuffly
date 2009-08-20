@@ -36,8 +36,9 @@
 			var jello:Jello;
 			currentGroup=new ParticleGroup();
 			jello=createJello(150,20,8);
-			addPower(new KeyboardPower(jello,container,0.18*0.01*b2Settings.b2_pixelScale,0.1*0.01*b2Settings.b2_pixelScale,0.1*0.01*b2Settings.b2_pixelScale));
-			addPower(new MousePower(currentGroup,60,3*0.01*b2Settings.b2_pixelScale,container));
+			addDrawablePower(jello);
+			addPower(new KeyboardPower(jello,container,1*0.01,0.18*0.01*b2Settings.b2_pixelScale,0.1*0.01*b2Settings.b2_pixelScale,0.1*0.01*b2Settings.b2_pixelScale));
+			//addPower(new MousePower(currentGroup,60,3*0.01*b2Settings.b2_pixelScale,container));
 			addDrawable(new CameraControl(jello,
 										  function(cmX:Number,cmY:Number){
 											  			var offsetX:Number=(0.5*container.stage.stageWidth-cmX-jello.offsetX)*0.05;
@@ -47,9 +48,8 @@
 														container.x=jello.offsetX;
 														container.y=jello.offsetY;
 													}));
-			addDrawablePower(jello);
-			jello.notifyGroupChanged();
 			currentGroup.notifyGroupChanged();
+			jello.notifyGroupChanged();
 		}
 		// ========================================================== //
 		private function createJello(count:int = 200, r:Number = 20, b2r:Number = 1, m:Number = 0.01, friction:Number = 0.1, restitution:Number = 0.1, rest_density:Number = 1 , xmin:Number=100, ymin:Number=0, xmax:Number=450, ymax:Number=200):Jello

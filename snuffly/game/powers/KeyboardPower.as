@@ -18,6 +18,9 @@
 		public var kRight:Number;
 		public var kDown:Number;
 		public var kUp:Number;
+		public var kCompress:Number;
+		public var kRotateLeft:Number;
+		public var kRotateRight:Number;
 		public var keyboardContainer:DisplayObject;	//Слушатель клавиатуры
 		
 		public var cx:Number;				//Центр масс
@@ -29,8 +32,11 @@
 		protected var moveUp:Boolean;
 		protected var compress:Boolean;
 		// ========================================================== //
-		public function KeyboardPower(particles:IParticleGroup, keyboardContainer:DisplayObject, kUp:Number, kDown:Number=-1, kLeft:Number=-1, kRight:Number=-1):void
+		public function KeyboardPower(particles:IParticleGroup, keyboardContainer:DisplayObject, kCompress:Number=0.1, kRotateLeft:Number=0.1, kRotateRight:Number=0.1, kUp:Number=0.18, kDown:Number=-1, kLeft:Number=-1, kRight:Number=-1):void
 		{
+			this.kCompress=kCompress;
+			this.kRotateLeft=kRotateLeft;
+			this.kRotateRight=kRotateRight;
 			this.kUp = kUp;
 			if(kDown<0)
 				this.kDown=kUp;
@@ -71,12 +77,16 @@
 			var i:int;
 			var px:Number;
 			var py:Number;
+			var fx:Number;
+			var fy:Number;
 			var dx:Number;
 			var dy:Number;
-			var cx:Number;
-			var cy:Number;
-			var b:Boolean=moveLeft||moveRight||compress)
-			if(b||moveUp||moveDown)
+			var vx:Number;
+			var vy:Number;
+			var vec:b2Vec2;
+			var b1:Boolean=moveLeft||moveRight;
+			var b2:Boolean=b1||compress;
+			if(b2||moveUp||moveDown)
 			{
 				px=0;
 				py=0;
@@ -88,7 +98,36 @@
 				for(i=0;i<ptCount;i++)
 				{
 					p=pt[i];
-					p.ApplyForceToCenter(dx,dy);
+					fx=px;
+					fy=py;
+					if(b2)
+					{
+						vec=p.GetPosition();
+						dx=vec.x-cx;
+						dy=vec.y-cy;
+						if(compress)
+						{
+							fx-=dx*kCompress;
+							fy-=dy*kCompress;
+						}
+						if(b1)
+						{
+							vec=p.GetLinearVelocity();
+							vx=vec.x;
+							vy=vec.y;
+							if(kLeft)
+							{
+								fx+=dy*5;
+								fy-=dx*5;
+							}
+							else
+							{
+								fx-=dy*5;
+								fy+=dx*5;
+							}
+						}
+					}
+					p.ApplyForceToCenter(fx,fy);
 				}
 			}
 		}
