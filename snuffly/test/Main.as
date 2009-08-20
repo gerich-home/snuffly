@@ -35,11 +35,12 @@
 			addChild(container);
 			container.mouseEnabled=true;
 			container.mouseChildren=false;
+			container.cacheAsBitmap=true;
 			addChild(testFPS);
 			
 			stage.focus = container;
 			stage.stageFocusRect=false;
-			stage.frameRate = 24;
+			stage.frameRate = 31;
 			
 			level=new TestLevel(container,fluidbmp);
 			

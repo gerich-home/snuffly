@@ -253,6 +253,7 @@
 		// ========================================================== //
 		function keyDown(event:KeyboardEvent):void
 		{
+			var spring:Spring;
 			if(event.keyCode==70)
 			{
 				if(jelloState)
@@ -262,6 +263,27 @@
 					else
 						kspring*=2;
 					frozen=!frozen;
+					
+					var dx:Number;
+					var dy:Number;
+					var vec1:b2Vec2;
+					var vec2:b2Vec2;
+					var d:Number;
+					var sqrt:Function=Math.sqrt;
+					spring=spring_list.next;
+					while(spring)
+					{
+						vec1=pt[spring.i].GetPosition();
+						vec2=pt[spring.j].GetPosition();
+						dx=vec1.x-vec2.x;
+						dy=vec1.y-vec2.y;
+						d=dx*dx+dy*dy;
+						if(d>rsq)
+							spring.l=r;
+						else
+							spring.l=sqrt(d);
+						spring=spring.next;
+					}
 				}
 			}
 			if(event.keyCode==83)
@@ -276,7 +298,6 @@
 					var i:int;
 					var j:int;
 					var spring_iji:Vector.<Spring>;
-					var spring:Spring;
 					
 					pt_springs	=new Vector.<int>(ptCount,true);
 					for(i=0;i<ptCount;i++)
@@ -476,6 +497,8 @@
 			
 			t2=getTimer()-t2;
 			var t3:int=getTimer();
+			
+			activeChanged=false;
 			
 			spring=null;
 			gli=sector_yxi.length;
@@ -876,7 +899,7 @@
 			t8=getTimer()-t8;
 			
 			t1=getTimer()-t1;
-			//trace(t1,t2,t3,t4,t5,t6,t7,t8);
+			trace(t1,t2,t3,t4,t5,t6,t7,t8);
 		}
 		// ========================================================== //
 		//Оповестить об изменении частиц

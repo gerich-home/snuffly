@@ -1,6 +1,7 @@
 ﻿package snuffly.test
 {
 	import flash.display.Bitmap;
+	import flash.display.Bitmap;
 	import flash.display.BitmapData;
 	import flash.display.DisplayObjectContainer;
 	import snuffly.game.core.*;
@@ -31,15 +32,18 @@
 		//Создаём мир
 		public override function init():void
 		{
+			var jello:Jello;
+			var cmCalc:CMCalculator;
 			world=createBox2DWorld();
 			fillWorld();
-			var jello:Jello;
 			currentGroup=new ParticleGroup();
-			jello=createJello(150,20,8);
+			jello=createJello(70,20,8);
 			addDrawablePower(jello);
-			addPower(new KeyboardPower(jello,container,1*0.01,0.18*0.01*b2Settings.b2_pixelScale,0.1*0.01*b2Settings.b2_pixelScale,0.1*0.01*b2Settings.b2_pixelScale));
+			cmCalc=new CMCalculator(jello);
+			addPower(cmCalc);
+			addPower(new KeyboardPower(jello,cmCalc,container,20*0.01,5*0.01,5*0.01,0.12*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale));
 			//addPower(new MousePower(currentGroup,60,3*0.01*b2Settings.b2_pixelScale,container));
-			addDrawable(new CameraControl(jello,
+			addDrawable(new CameraControl(cmCalc,
 										  function(cmX:Number,cmY:Number){
 											  			var offsetX:Number=(0.5*container.stage.stageWidth-cmX-jello.offsetX)*0.05;
 											  			var offsetY:Number=(0.5*container.stage.stageHeight-cmY-jello.offsetY)*0.05;
@@ -50,9 +54,10 @@
 													}));
 			currentGroup.notifyGroupChanged();
 			jello.notifyGroupChanged();
+			velocityIterations=1;
 		}
 		// ========================================================== //
-		private function createJello(count:int = 200, r:Number = 20, b2r:Number = 1, m:Number = 0.01, friction:Number = 0.1, restitution:Number = 0.1, rest_density:Number = 1 , xmin:Number=100, ymin:Number=0, xmax:Number=450, ymax:Number=200):Jello
+		private function createJello(count:int = 200, r:Number = 20, b2r:Number = 1, m:Number = 0.01, friction:Number = 1, restitution:Number = 0.1, rest_density:Number = 1 , xmin:Number=100, ymin:Number=0, xmax:Number=450, ymax:Number=200):Jello
 		{
 			var i:int;
 			var jellopt:Vector.<b2Body>=new Vector.<b2Body>;
@@ -136,7 +141,7 @@
 			bodyDef.position.Set(10*b2Settings.b2_pixelScale, 15*b2Settings.b2_pixelScale);
 			boxDef = new b2PolygonDef();
 			boxDef.SetAsBox(256*3/*30*b2Settings.b2_pixelScale*/, 128/*3*b2Settings.b2_pixelScale*/);
-			boxDef.friction = 0.3;
+			boxDef.friction = 0.5;
 			boxDef.density = 0;
 			bodyDef.userData = new Ground();
 			bodyDef.userData.width =   512*3//2 * 30 * b2Settings.b2_pixelScale; 
@@ -153,7 +158,7 @@
 			bodyDef.position.Set(-1*b2Settings.b2_pixelScale, 6*b2Settings.b2_pixelScale);
 			boxDef = new b2PolygonDef();
 			boxDef.SetAsBox(209/*30*b2Settings.b2_pixelScale*/, 55/*3*b2Settings.b2_pixelScale*/);
-			boxDef.friction = 0.3;
+			boxDef.friction = 0.5;
 			boxDef.density = 0;
 			bodyDef.userData = new Wall();
 			bodyDef.userData.width =   418; 
@@ -170,7 +175,7 @@
 			bodyDef.position.Set(17*b2Settings.b2_pixelScale, -3*b2Settings.b2_pixelScale);
 			boxDef = new b2PolygonDef();
 			boxDef.SetAsBox(209/*30*b2Settings.b2_pixelScale*/, 55/*3*b2Settings.b2_pixelScale*/);
-			boxDef.friction = 0.3;
+			boxDef.friction = 0.5;
 			boxDef.density = 0;
 			bodyDef.userData = new Wall();
 			bodyDef.userData.width =   418; 

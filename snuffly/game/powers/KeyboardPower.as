@@ -23,16 +23,16 @@
 		public var kRotateRight:Number;
 		public var keyboardContainer:DisplayObject;	//Слушатель клавиатуры
 		
-		public var cx:Number;				//Центр масс
-		public var cy:Number;
-		
 		protected var moveLeft:Boolean;
 		protected var moveRight:Boolean;
 		protected var moveDown:Boolean;
 		protected var moveUp:Boolean;
 		protected var compress:Boolean;
+		protected var cntrl:Boolean;
+		
+		protected var cmCalc:CMCalculator;						//Вычислитель центра масс
 		// ========================================================== //
-		public function KeyboardPower(particles:IParticleGroup, keyboardContainer:DisplayObject, kCompress:Number=0.1, kRotateLeft:Number=0.1, kRotateRight:Number=0.1, kUp:Number=0.18, kDown:Number=-1, kLeft:Number=-1, kRight:Number=-1):void
+		public function KeyboardPower(particles:IParticleGroup, cmCalc:CMCalculator, keyboardContainer:DisplayObject, kCompress:Number=0.1, kRotateLeft:Number=0.01, kRotateRight:Number=0.1, kUp:Number=0.18, kDown:Number=-1, kLeft:Number=-1, kRight:Number=-1):void
 		{
 			this.kCompress=kCompress;
 			this.kRotateLeft=kRotateLeft;
@@ -51,11 +51,13 @@
 			else
 				this.kRight=kRight;
 			this.keyboardContainer=keyboardContainer;
+			this.cmCalc=cmCalc;
 			moveLeft=false;
 			moveRight=false;
 			moveUp=false;
 			moveDown=false;
 			compress=false;
+			cntrl=false;
 			keyboardContainer.addEventListener(KeyboardEvent.KEY_DOWN,KeyDown);
 			keyboardContainer.addEventListener(KeyboardEvent.KEY_UP,KeyUp);
 			keyboardContainer.addEventListener(FocusEvent.FOCUS_OUT,FocusLost);
@@ -66,23 +68,26 @@
 		protected function particlesChanged(event:ParticleGroupEvent):void
 		{
 			pt=event.particles;
-			ptCount=pt.length;
-			cx=event.cx;
-			cy=event.cy;
-		}
+			ptCount=pt.length;		}
 		// ========================================================== //
 		public function applyPower():void
 		{
+			var sqrt:Function=Math.sqrt;
 			var p:b2Body;
 			var i:int;
 			var px:Number;
 			var py:Number;
 			var fx:Number;
 			var fy:Number;
+			var d:Number;
+			var dk:Number;
 			var dx:Number;
 			var dy:Number;
 			var vx:Number;
 			var vy:Number;
+			
+			var cx:Number=cmCalc.cy;
+			var cy:Number=cmCalc.cx;
 			var vec:b2Vec2;
 			var b1:Boolean=moveLeft||moveRight;
 			var b2:Boolean=b1||compress;
@@ -105,26 +110,24 @@
 						vec=p.GetPosition();
 						dx=vec.x-cx;
 						dy=vec.y-cy;
+						d=1/(sqrt(dx*dx+dy*dy)+0.1);
 						if(compress)
 						{
-							fx-=dx*kCompress;
-							fy-=dy*kCompress;
+							dk=d*kCompress;
+							fx-=dx*dk;
+							if(cntrl){}
+								//fy+=dy*dk;
+							else
+								fy-=dy*dk;
 						}
 						if(b1)
 						{
-							vec=p.GetLinearVelocity();
-							vx=vec.x;
-							vy=vec.y;
-							if(kLeft)
-							{
-								fx+=dy*5;
-								fy-=dx*5;
-							}
+							if(moveLeft)
+								dk=d*kRotateLeft;
 							else
-							{
-								fx-=dy*5;
-								fy+=dx*5;
-							}
+								dk=-d*kRotateRight;
+							fx+=dy*dk;
+							fy-=dx*dk;
 						}
 					}
 					p.ApplyForceToCenter(fx,fy);
@@ -142,6 +145,7 @@
 				case Keyboard.RIGHT:	moveRight=true; break;
 				case Keyboard.DOWN:		moveDown= true; break;
 				case Keyboard.SPACE:	compress= true; break;
+				case Keyboard.CONTROL:	cntrl=    true; break;
 			}
 		}
 		// ========================================================== //
@@ -154,6 +158,7 @@
 				case Keyboard.RIGHT:	moveRight=false; break;
 				case Keyboard.DOWN:		moveDown= false; break;
 				case Keyboard.SPACE:	compress= false; break;
+				case Keyboard.CONTROL:	cntrl=    false; break;
 			}
 		}
 		// ========================================================== //
@@ -164,6 +169,7 @@
 			moveRight=false;
 			moveDown= false;
 			compress= false;
+			cntrl=    false;
 		}
 		// ========================================================== //
 	}
