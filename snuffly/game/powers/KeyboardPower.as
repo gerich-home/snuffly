@@ -23,6 +23,8 @@
 		public var kRotateRight:Number;
 		public var keyboardContainer:DisplayObject;	//Слушатель клавиатуры
 		
+		protected var rotateLeft:Boolean;
+		protected var rotateRight:Boolean;
 		protected var moveLeft:Boolean;
 		protected var moveRight:Boolean;
 		protected var moveDown:Boolean;
@@ -52,6 +54,9 @@
 				this.kRight=kRight;
 			this.keyboardContainer=keyboardContainer;
 			this.cmCalc=cmCalc;
+			
+			rotateLeft=false;
+			rotateRight=false;
 			moveLeft=false;
 			moveRight=false;
 			moveUp=false;
@@ -83,15 +88,13 @@
 			var dk:Number;
 			var dx:Number;
 			var dy:Number;
-			var vx:Number;
-			var vy:Number;
 			
-			var cx:Number=cmCalc.cy;
-			var cy:Number=cmCalc.cx;
+			var cx:Number=cmCalc.cx;
+			var cy:Number=cmCalc.cy;
 			var vec:b2Vec2;
-			var b1:Boolean=moveLeft||moveRight;
+			var b1:Boolean=rotateLeft||rotateRight;
 			var b2:Boolean=b1||compress;
-			if(b2||moveUp||moveDown)
+			if(b2||moveLeft||moveRight||moveUp||moveDown)
 			{
 				px=0;
 				py=0;
@@ -110,24 +113,25 @@
 						vec=p.GetPosition();
 						dx=vec.x-cx;
 						dy=vec.y-cy;
-						d=1/(sqrt(dx*dx+dy*dy)+0.1);
 						if(compress)
 						{
-							dk=d*kCompress;
+							dk=kCompress;
 							fx-=dx*dk;
-							if(cntrl){}
-								//fy+=dy*dk;
-							else
-								fy-=dy*dk;
+							fy-=dy*dk;
 						}
 						if(b1)
 						{
-							if(moveLeft)
-								dk=d*kRotateLeft;
-							else
-								dk=-d*kRotateRight;
-							fx+=dy*dk;
-							fy-=dx*dk;
+							d=sqrt(dx*dx+dy*dy);
+							if(d>0)
+							{
+								d=1/d;
+								if(rotateLeft)
+									dk=d*kRotateLeft;
+								else
+									dk=-d*kRotateRight;
+								fx+=dy*dk;
+								fy-=dx*dk;
+							}
 						}
 					}
 					p.ApplyForceToCenter(fx,fy);
@@ -140,12 +144,13 @@
 		{
 			switch(e.keyCode)
 			{
-				case Keyboard.LEFT:		moveLeft= true; break;
-				case Keyboard.UP:		moveUp=   true; break;
-				case Keyboard.RIGHT:	moveRight=true; break;
-				case Keyboard.DOWN:		moveDown= true; break;
-				case Keyboard.SPACE:	compress= true; break;
-				case Keyboard.CONTROL:	cntrl=    true; break;
+				case 65:				moveLeft=    true; break;
+				case 87:				moveUp=      true; break;
+				case 68:				moveRight=   true; break;
+				case 83:				moveDown=    true; break;
+				case Keyboard.LEFT:		rotateLeft=  true; break;
+				case Keyboard.RIGHT:	rotateRight= true; break;
+				case Keyboard.SPACE:	compress=    true; break;
 			}
 		}
 		// ========================================================== //
@@ -153,23 +158,26 @@
 		{
 			switch(e.keyCode)
 			{
-				case Keyboard.LEFT:		moveLeft= false; break;
-				case Keyboard.UP:		moveUp=   false; break;
-				case Keyboard.RIGHT:	moveRight=false; break;
-				case Keyboard.DOWN:		moveDown= false; break;
-				case Keyboard.SPACE:	compress= false; break;
-				case Keyboard.CONTROL:	cntrl=    false; break;
+				case 65:				moveLeft=    false; break;
+				case 87:				moveUp=      false; break;
+				case 68:				moveRight=   false; break;
+				case 83:				moveDown=    false; break;
+				case Keyboard.SPACE:	compress=    false; break;
+				case Keyboard.LEFT:		rotateLeft=  false; break;
+				case Keyboard.RIGHT:	rotateRight= false; break;
 			}
 		}
 		// ========================================================== //
 		public function FocusLost(e:FocusEvent):void
 		{
-			moveLeft= false;
-			moveUp=   false;
-			moveRight=false;
-			moveDown= false;
-			compress= false;
-			cntrl=    false;
+			rotateLeft=  false;
+			rotateRight= false;
+			moveLeft=    false;
+			moveUp=      false;
+			moveRight=   false;
+			moveDown=    false;
+			compress=    false;
+			cntrl=       false;
 		}
 		// ========================================================== //
 	}

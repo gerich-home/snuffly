@@ -15,6 +15,7 @@
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.KeyboardEvent;
+	import flash.ui.Keyboard;
 	//Желе
 	public class Jello implements IDrawable, IPower, IParticleGroup
 	{
@@ -154,7 +155,6 @@
 				activeParticles[0]=pt[0];
 				activeGroup[0]=true;
 			}
-			activeChanged			=false;
 			for(i=0;i<ptCount;i++)
 			{
 				spring_iji=new Vector.<Spring>(i,true);
@@ -254,7 +254,7 @@
 		function keyDown(event:KeyboardEvent):void
 		{
 			var spring:Spring;
-			if(event.keyCode==70)
+			if(event.keyCode==81)
 			{
 				if(jelloState)
 				{
@@ -286,7 +286,7 @@
 					}
 				}
 			}
-			if(event.keyCode==83)
+			if(event.keyCode==69)
 			{
 				if(jelloState)
 				{

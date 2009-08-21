@@ -41,7 +41,7 @@
 			addDrawablePower(jello);
 			cmCalc=new CMCalculator(jello);
 			addPower(cmCalc);
-			addPower(new KeyboardPower(jello,cmCalc,container,20*0.01,5*0.01,5*0.01,0.12*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale));
+			addPower(new KeyboardPower(jello,cmCalc,container,0.5*0.01,5*0.01,5*0.01,0.12*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale));
 			//addPower(new MousePower(currentGroup,60,3*0.01*b2Settings.b2_pixelScale,container));
 			addDrawable(new CameraControl(cmCalc,
 										  function(cmX:Number,cmY:Number){

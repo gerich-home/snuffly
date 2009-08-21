@@ -33,10 +33,9 @@
 			
 			addChild(fluidbmp);
 			addChild(container);
-			container.mouseEnabled=true;
-			container.mouseChildren=false;
-			container.cacheAsBitmap=true;
+			container.mouseEnabled=false;
 			addChild(testFPS);
+			testFPS.mouseEnabled=false;
 			
 			stage.focus = container;
 			stage.stageFocusRect=false;
