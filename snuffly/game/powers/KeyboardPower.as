@@ -19,6 +19,7 @@
 		public var kDown:Number;
 		public var kUp:Number;
 		public var kCompress:Number;
+		public var kRotate:Number;
 		public var kRotateLeft:Number;
 		public var kRotateRight:Number;
 		public var keyboardContainer:DisplayObject;	//Слушатель клавиатуры
@@ -34,9 +35,10 @@
 		
 		protected var cmCalc:CMCalculator;						//Вычислитель центра масс
 		// ========================================================== //
-		public function KeyboardPower(particles:IParticleGroup, cmCalc:CMCalculator, keyboardContainer:DisplayObject, kCompress:Number=0.1, kRotateLeft:Number=0.01, kRotateRight:Number=0.1, kUp:Number=0.18, kDown:Number=-1, kLeft:Number=-1, kRight:Number=-1):void
+		public function KeyboardPower(particles:IParticleGroup, cmCalc:CMCalculator, keyboardContainer:DisplayObject, kCompress:Number=0.1, kRotate:Number = 0.0005, kRotateLeft:Number=0.01, kRotateRight:Number=0.1, kUp:Number=0.18, kDown:Number=-1, kLeft:Number=-1, kRight:Number=-1):void
 		{
 			this.kCompress=kCompress;
+			this.kRotate=kRotate;
 			this.kRotateLeft=kRotateLeft;
 			this.kRotateRight=kRotateRight;
 			this.kUp = kUp;
@@ -88,9 +90,14 @@
 			var dk:Number;
 			var dx:Number;
 			var dy:Number;
+			var vx:Number;
+			var vy:Number;
+			var w:Number;
 			
 			var cx:Number=cmCalc.cx;
 			var cy:Number=cmCalc.cy;
+			var cvx:Number=cmCalc.vx;
+			var cvy:Number=cmCalc.vy;
 			var vec:b2Vec2;
 			var b1:Boolean=rotateLeft||rotateRight;
 			var b2:Boolean=b1||compress;
@@ -125,12 +132,25 @@
 							if(d>0)
 							{
 								d=1/d;
-								if(rotateLeft)
-									dk=d*kRotateLeft;
+								vec=p.GetLinearVelocity();
+								vx=vec.x-cvx;
+								vy=vec.y-cvy;
+								w=sqrt(vx*vx+vy*vy)*d;
+								if(w>1.5)
+								{
+									w*=w*kRotate;
+									dk=0;
+								}
 								else
-									dk=-d*kRotateRight;
-								fx+=dy*dk;
-								fy-=dx*dk;
+								{
+									if(rotateLeft)
+										dk=d*kRotateLeft;
+									else
+										dk=-d*kRotateRight;
+									w*=w*(w*0.6666)*kRotate;
+								}
+								fx+=dy*dk-dx*w;
+								fy-=dx*dk+dy*w;
 							}
 						}
 					}

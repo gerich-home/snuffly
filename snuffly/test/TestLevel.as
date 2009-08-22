@@ -37,23 +37,23 @@
 			world=createBox2DWorld();
 			fillWorld();
 			currentGroup=new ParticleGroup();
-			jello=createJello(200,20,8);
+			jello=createJello(100,20,8);
 			addDrawablePower(jello);
 			cmCalc=new CMCalculator(jello);
 			addPower(cmCalc);
-			addPower(new KeyboardPower(jello,cmCalc,container,0.5*0.01,5*0.01,5*0.01,0.12*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale));
+			addPower(new KeyboardPower(jello,cmCalc,container,0.5*0.01,0.01,10*0.01,10*0.01,0.12*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale));
 			//addPower(new MousePower(currentGroup,60,3*0.01*b2Settings.b2_pixelScale,container));
-			var spiteCenterX:Number=0.5*container.stage.stageWidth;
-			var spiteCenterY:Number=0.5*container.stage.stageHeight;
+			var spriteCenterX:Number=0.5*container.stage.stageWidth;
+			var spriteCenterY:Number=0.5*container.stage.stageHeight;
 			var atannorm:Number=2/Math.PI;
 			addDrawable(new CameraControl(cmCalc,
 										  function(cmX:Number,cmY:Number){
-											  			var offsetX:Number=spiteCenterX-cmX-jello.offsetX;
-											  			var offsetY:Number=spiteCenterY-cmY-jello.offsetY;
-											  			var atanX:Number=Math.abs(Math.atan(offsetX*0.2)*atannorm);
-											  			var atanY:Number=Math.abs(Math.atan(offsetY*0.2)*atannorm);
-														offsetX*=0.01+atanX*0.09;
-														offsetY*=0.01+atanY*0.09;
+											  			var offsetX:Number=0.05*(spriteCenterX-cmX-jello.offsetX);
+											  			var offsetY:Number=0.05*(spriteCenterY-cmY-jello.offsetY);
+											  			//var atanX:Number=Math.abs(Math.atan(offsetX*0.2)*atannorm);
+											  			//var atanY:Number=Math.abs(Math.atan(offsetY*0.2)*atannorm);
+														//offsetX*=0.01+atanX*0.09;
+														//offsetY*=0.01+atanY*0.09;
 														jello.offsetX+=offsetX;
 														jello.offsetY+=offsetY;
 														container.x=jello.offsetX;

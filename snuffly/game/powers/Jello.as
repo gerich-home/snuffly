@@ -22,33 +22,40 @@
 		protected var pt:Vector.<b2Body>;						//Частицы желе
 		protected var ptCount:int;								//Количество частиц
 		
-		protected var ij:Vector.<Vector.<int>>;					//Просмотрена ли пара соседей ij(0-не просмотрена)?
-		protected var spring_ij:Vector.<Vector.<Spring>>;		//Свзяь между частицами i и j(null, если её нет)
+		protected var ij:Vector.<Vector.<int>>;					//Просмотрена ли пара соседей ij(0-не просмотрена, 1-они соседи, -1-не соседи)?
+		protected var spring_ij:Vector.<Vector.<Spring>>;		//Связь между частицами i и j(null, если её нет)
+		
+		//Соседи i-ой частицы 
 		protected var ns:Vector.<Vector.<int>>;					//Индексы соседей частицы
 		protected var nsq1:Vector.<Vector.<Number>>;			//q1
 		protected var nsq2:Vector.<Vector.<Number>>;			//q2      - для SPH модели
 		protected var nsdx:Vector.<Vector.<Number>>;			//вектор между точками частицами i и j
 		protected var nsdy:Vector.<Vector.<Number>>;
+		
+		//Параметры каждой частицы
 		protected var ro:Vector.<Number>;						//Дальняя плотность
 		protected var ro_near:Vector.<Number>;					//Ближняя плотность
 		protected var press:Vector.<Number>;					//Дальнее давление
 		protected var press_near:Vector.<Number>;				//Ближнее давление
-		protected var powerx:Vector.<Number>;					//Силы от связей и давления
+		protected var powerx:Vector.<Number>;					//Суммарные силы от связей и давления
 		protected var powery:Vector.<Number>;
+		protected var px:Vector.<Number>;						//Координаты
+		protected var py:Vector.<Number>;
+		protected var vx:Vector.<Number>;						//Скорость
+		protected var vy:Vector.<Number>;
 		protected var pt_springs:Vector.<int>;					//Число связей у частицы
+		protected var pt_state:Vector.<int>;					//Состояние частицы(0-липкая, 1-упругая, 2-жидкая)
+		
 		protected var groupqueue:Vector.<int>;					//Очередь для выделения компоненты связности
-		protected var px:Vector.<Number>;						//Координата x
-		protected var py:Vector.<Number>;						//Координата y
-		protected var vx:Vector.<Number>;						//Скорость x
-		protected var vy:Vector.<Number>;						//Скорость y
 		
 		protected var spring_list:Spring;						//Связый список активных связей
 		protected var spring_pool:Spring;						//Пул связей
 		
-		
-		protected var jelloState:Boolean;						//Состояние желе
+		//Состояние желе
+		protected var jelloState:Boolean;						//Желе/жидкость
 		protected var frozen:Boolean;							//Можно ли менять длину связей и добавлять новые?
 		
+		//Общие параметры и просчитанные заранее данные
 		protected var _spacing:Number;		//Псевдорадиус
 		protected var imageRadius:Number;	//Радиус изображения
 		protected var k:Number;				//Сила дальнего давления
@@ -147,6 +154,7 @@
 			vx			=new Vector.<Number>(ptCount,true);
 			vy			=new Vector.<Number>(ptCount,true);
 			pt_springs	=new Vector.<int>(ptCount,true);
+			pt_state	=new Vector.<int>(ptCount,true);
 			groupqueue	=new Vector.<int>(ptCount,true);
 			activeParticles=pt;
 			activeGroup	=new Vector.<Boolean>(ptCount,true);
@@ -225,6 +233,7 @@
 			vx			=null;
 			vy			=null;
 			pt_springs	=null;
+			pt_state	=null;
 			activeParticles=null;
 			activeGroup	=null;
 			groupqueue	=null;
@@ -254,72 +263,97 @@
 		function keyDown(event:KeyboardEvent):void
 		{
 			var spring:Spring;
-			if(event.keyCode==81)
+			var i:int;
+			var j:int;
+			var new_state:int;
+			if(event.keyCode==81)		//липкость/упругость
 			{
-				if(jelloState)
+				if(jelloState)			//Меняем липкость и упругость
 				{
-					if(frozen)
-						kspring*=0.5;
-					else
-						kspring*=2;
 					frozen=!frozen;
+					new_state=frozen?1:0;
+				}
+				else					//Переходим из воды в желе
+				{
+					frozen=false;
+					new_state=0;
+				}
+				
+				var dx:Number;
+				var dy:Number;
+				var vec1:b2Vec2;
+				var vec2:b2Vec2;
+				var d:Number;
+				var smallr:Number=0.01*r;
+				var smallrsq:Number=smallr*smallr;
+				var sqrt:Function=Math.sqrt;
+				
+				for(i=0;i<ptCount;i++)			//Переводим активные частички в новое состояние
+					if(activeGroup[i])
+						pt_state[i]=new_state;
 					
-					var dx:Number;
-					var dy:Number;
-					var vec1:b2Vec2;
-					var vec2:b2Vec2;
-					var d:Number;
-					var sqrt:Function=Math.sqrt;
+				if(frozen)						//На всякий случай "ослабляем" короткие связи и укорачиваем длинные
+				{
 					spring=spring_list.next;
 					while(spring)
 					{
-						vec1=pt[spring.i].GetPosition();
-						vec2=pt[spring.j].GetPosition();
-						dx=vec1.x-vec2.x;
-						dy=vec1.y-vec2.y;
-						d=dx*dx+dy*dy;
-						if(d>rsq)
-							spring.l=r;
-						else
-							spring.l=sqrt(d);
+						i=spring.i;
+						j=spring.j;
+						if(activeGroup[i]||activeGroup[j])
+						{
+							vec1=pt[i].GetPosition();
+							vec2=pt[j].GetPosition();
+							dx=vec1.x-vec2.x;
+							dy=vec1.y-vec2.y;
+							d=dx*dx+dy*dy;
+							if(d>rsq)
+								spring.l=r;
+							else if(d<smallrsq)
+								spring.l=smallr;
+							else
+								spring.l=sqrt(d);
+						}
 						spring=spring.next;
 					}
 				}
 			}
-			if(event.keyCode==69)		//становимся водичкой
+			else if(event.keyCode==69)		//становимся водичкой
 			{
-				if(jelloState)
+				if(jelloState)				//из желе в воду
 				{
-					if(frozen)
-					{
-						kspring*=0.5;
-						frozen=!frozen;
-					}
-					var i:int;
-					var j:int;
-					var spring_iji:Vector.<Spring>;
+					frozen=false;
 					
-					pt_springs	=new Vector.<int>(ptCount,true);
-					for(i=0;i<ptCount;i++)
-					{
-						spring_iji=new Vector.<Spring>(i,true);
-						for(j=0;j<i;j++)
-							spring_iji[j]=null;
-						spring_ij[i]=spring_iji;
-					}
-					
+					var prev:Spring;
 					spring=spring_list.next;
+					prev=spring_list;
 					while(spring)
 					{
-						if(!spring.next)
+						i=spring.i;
+						j=spring.j;
+						if(activeGroup[i]||activeGroup[j])
 						{
+							prev.next=spring.next;
+							spring_ij[i][j]=null;
 							spring.next=spring_pool.next;
-							spring_pool.next=spring_list.next;
-							break;
+							spring_pool.next=spring;
+							spring=prev.next;
+							continue;
 						}
+						prev=spring;
 						spring=spring.next;
 					}
-					spring_list.next=null;
+					for(i=0;i<ptCount;i++)			//Переводим активные частички в новое состояние
+						if(activeGroup[i])
+						{
+							pt_state[i]=2;
+							pt_springs[i]=0;
+						}
+				}
+				else
+				{
+					for(i=0;i<ptCount;i++)			//Переводим активные частички в новое состояние
+						if(activeGroup[i])
+							pt_state[i]=0;
 				}
 				jelloState=!jelloState;
 			}
@@ -416,12 +450,16 @@
 			var vec1:b2Vec2;
 			var vec2:b2Vec2;
 			
+			var activei:Boolean;
+			var activej:Boolean;
+			var pt_statei:int;
+			
 			sector_y=new Array();
 			sector_yx=new Array();
 			sector_yxi=new Array();
 			
 			var t2:int=getTimer();
-			for(i=0; i<ptCount; i++)
+			for(i=0;i<ptCount;i++)
 			{
 				p=pt[i];
 				vec1=p.GetPosition();
@@ -525,8 +563,10 @@
 						p_y=py[i];
 						v_x=vx[i];
 						v_y=vy[i];
+						pt_statei=pt_state[i];
 						spring_iji=spring_ij[i];
 						z=pt_springs[i];
+						activei=activeGroup[i];
 						
 						for(cj=0;cj<ci;cj++)
 						{
@@ -541,32 +581,37 @@
 									qd+=dy*dy;
 									if(qd<rsq)
 									{
-										if(jelloState)
-											if(!frozen)
-												if(spring_iji[j])
-													spring=spring_iji[j];
-												else if(z<max_springs)
-													if(pt_springs[j]<max_springs)
-													{
-														spring=spring_pool.next;
-														/*if(spring)
-														{*/
-														spring_pool.next=spring.next;
-														spring.next=spring_list.next;
-														spring.i=i;
-														spring.j=j;
-														activeChanged||=activeGroup[i]||activeGroup[j];
-														spring.l=r;
-														/*}
-														else
-															spring=new Spring(spring_list.next,i,j,r);*/
-														spring_iji[j]=spring;
-														spring_list.next=spring;
-														z++;
-														pt_springs[j]++;
-													}
-										
+										activej=activeGroup[j];
 										d=sqrt(qd);
+										if(((!frozen) && (jelloState)&&(activei||activej))||((pt_statei==0)&&(pt_state[j]==0)))
+											if(spring_iji[j])
+												spring=spring_iji[j];
+											else if(z<max_springs)
+												if(pt_springs[j]<max_springs)
+												{
+													spring=spring_pool.next;
+													spring_pool.next=spring.next;
+													spring.next=spring_list.next;
+													spring.i=i;
+													spring.j=j;
+													spring.l=d;
+													spring_iji[j]=spring;
+													spring_list.next=spring;
+													z++;
+													pt_springs[j]++;
+													pt_state[j]=0;
+													pt_statei=0;
+													if(activei)
+													{
+														if(!activej)
+															activeChanged=true;
+													}
+													else
+														if(activej)
+															activeChanged=true;
+												}
+											
+										
 										
 										if(spring)
 										{
@@ -616,7 +661,10 @@
 											s3=(v_x-vx[j])*dx+(v_y-vy[j])*dy;
 											if(s3>0)
 											{
-												s1=q1*(viscosity_a+viscosity_b*s3)*s3;
+												if(s3>100)
+													s1=q1*(viscosity_a+viscosity_b*100)*100;
+												else
+													s1=q1*(viscosity_a+viscosity_b*s3)*s3;
 												dx*=s1;
 												dy*=s1;
 												v_x-=dx;
@@ -641,6 +689,7 @@
 						pt_springs[i]=z;
 						vx[i]=v_x;
 						vy[i]=v_y;
+						pt_state[i]=pt_statei;
 					}
 				}
 			}
@@ -648,64 +697,43 @@
 			t3=getTimer()-t3;
 			var t4:int=getTimer();
 			
-			if(jelloState)
+			spring=spring_list.next;
+			prev=spring_list;
+			while(spring)
 			{
-				spring=spring_list.next;
-				prev=spring_list;
-				while(spring)
+				i=spring.i;
+				j=spring.j;
+				pt_statei=pt_state[i];
+				s1=spring.l;
+				if(s1>r)
 				{
-					i=spring.i;
-					j=spring.j;
-					s1=spring.l;
-					if(s1>r)
+					prev.next=spring.next;
+					spring_ij[i][j]=null;
+					spring.next=spring_pool.next;
+					spring_pool.next=spring;
+					spring=prev.next;
+					pt_springs[i]--;
+					pt_springs[j]--;
+					activeChanged||=activeGroup[i]||activeGroup[j];
+					continue;
+				}
+				else
+				{
+					d=spring.d;
+					if(d<0)
 					{
-						prev.next=spring.next;
-						spring_ij[i][j]=null;
-						spring.next=spring_pool.next;
-						spring_pool.next=spring;
-						spring=prev.next;
-						pt_springs[i]--;
-						pt_springs[j]--;
-						activeChanged||=activeGroup[i]||activeGroup[j];
-						continue;
-					}
-					else
-					{
-						d=spring.d;
-						if(d<0)
+						dx=px[j]-px[i];
+						dy=py[j]-py[i];
+						d=sqrt(dx*dx+dy*dy);
+						if(d>0.01)
 						{
-							dx=px[j]-px[i];
-							dy=py[j]-py[i];
-							d=sqrt(dx*dx+dy*dy);
-							if(d>0.01)
-							{
-								q1=1/d;
-								dx*=q1;
-								dy*=q1;
-							}
-							if(frozen)
-							{
-								if((d>4*r)||((d>2*r)&&((pt_springs[i]<4)||(pt_springs[j]<4))))
-									{
-										prev.next=spring.next;
-										spring_ij[i][j]=null;
-										spring.next=spring_pool.next;
-										spring_pool.next=spring;
-										spring=prev.next;
-										pt_springs[i]--;
-										pt_springs[j]--;
-										activeChanged||=activeGroup[i]||activeGroup[j];
-										continue;
-									}
-							}
-							else
-							{
-								s2=s1*stretch_treshold;
-								s3=d-s1;
-								if(s3>s2)
-									spring.l+=s1*rinv*stretch_speed*(s3-s2);
-								s1=spring.l;
-								if(s1>r)
+							q1=1/d;
+							dx*=q1;
+							dy*=q1;
+						}
+						if(pt_statei==1)
+						{
+							if((d>4*r)||((d>2*r)&&((pt_springs[i]<5)||(pt_springs[j]<5))))
 								{
 									prev.next=spring.next;
 									spring_ij[i][j]=null;
@@ -717,28 +745,47 @@
 									activeChanged||=activeGroup[i]||activeGroup[j];
 									continue;
 								}
-							}
 						}
 						else
 						{
-							dx=spring.dx;
-							dy=spring.dy;
-							spring.d=-1;
-						}
-						if(d>0.01)
-						{
-							q1=kspring*(s1-d);// *(1-s1*rinv)
-							dx*=q1;
-							dy*=q1;
-							powerx[j]+=dx;
-							powery[j]+=dy;
-							powerx[i]-=dx;
-							powery[i]-=dy;
+							s2=s1*stretch_treshold;
+							s3=d-s1;
+							if(s3>s2)
+								spring.l+=s1*rinv*stretch_speed*(s3-s2);
+							s1=spring.l;
+							if(s1>r)
+							{
+								prev.next=spring.next;
+								spring_ij[i][j]=null;
+								spring.next=spring_pool.next;
+								spring_pool.next=spring;
+								spring=prev.next;
+								pt_springs[i]--;
+								pt_springs[j]--;
+								activeChanged||=activeGroup[i]||activeGroup[j];
+								continue;
+							}
 						}
 					}
-					prev=spring;
-					spring=spring.next;
+					else
+					{
+						dx=spring.dx;
+						dy=spring.dy;
+						spring.d=-1;
+					}
+					if(d>0.01)
+					{
+						q1=kspring*(s1-d);// *(1-s1*rinv)
+						dx*=q1;
+						dy*=q1;
+						powerx[j]+=dx;
+						powery[j]+=dy;
+						powerx[i]-=dx;
+						powery[i]-=dy;
+					}
 				}
+				prev=spring;
+				spring=spring.next;
 			}
 			
 			t4=getTimer()-t4;
