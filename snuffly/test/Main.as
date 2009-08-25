@@ -10,6 +10,7 @@
 	import flash.display.MovieClip;
 	import flash.utils.*;
 	import snuffly.test.TestLevel;
+	import snuffly.editor.LevelEditor;
 	import snuffly.game.core.Level;
 	
 	public class Main extends MovieClip
@@ -33,7 +34,6 @@
 			
 			addChild(fluidbmp);
 			addChild(container);
-			container.mouseEnabled=false;
 			addChild(testFPS);
 			testFPS.mouseEnabled=false;
 			
@@ -41,7 +41,12 @@
 			stage.stageFocusRect=false;
 			stage.frameRate = 31;
 			
-			level=new TestLevel(container,fluidbmp);
+			//level=new TestLevel(container,fluidbmp);
+			level=new LevelEditor(stage,container,fluidbmp,[
+															{label:"Box",    factory:Box},
+															{label:"Ground", factory:Ground},
+															{label:"Ball",   factory:Ball}
+															]);
 			
 			stage.addEventListener(FocusEvent.FOCUS_OUT, function(e:Event):void {
 											if(e.target==container)
