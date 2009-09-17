@@ -144,9 +144,9 @@
 								else
 								{
 									if(rotateLeft)
-										dk=d*kRotateLeft;
+										dk=kRotateLeft;
 									else
-										dk=-d*kRotateRight;
+										dk=-kRotateRight;
 									w*=w*(w*0.6666)*kRotate;
 								}
 								fx+=dy*dk-dx*w;

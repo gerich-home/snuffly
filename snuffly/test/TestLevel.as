@@ -41,7 +41,7 @@
 			addDrawablePower(jello);
 			cmCalc=new CMCalculator(jello);
 			addPower(cmCalc);
-			addPower(new KeyboardPower(jello,cmCalc,container,0.5*0.01,0.01,10*0.01,10*0.01,0.12*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale));
+			addPower(new KeyboardPower(jello,cmCalc,container,0.5*0.01,0.01,0.1*0.01,0.1*0.01,0.12*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale,0.3*0.01*b2Settings.b2_pixelScale));
 			//addPower(new MousePower(currentGroup,60,3*0.01*b2Settings.b2_pixelScale,container));
 			var spriteCenterX:Number=0.5*container.stage.stageWidth;
 			var spriteCenterY:Number=0.5*container.stage.stageHeight;

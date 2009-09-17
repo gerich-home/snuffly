@@ -24,7 +24,7 @@
 		// ========================================================== //
 		protected override function onAddedToStage(e:Event):void
 		{
-			_addChild(outerBg);
+			addChild(outerBg);
 			super.onAddedToStage(e);
 			outerBg.x=-startX;
 			outerBg.y=-startY;
@@ -33,7 +33,7 @@
 		protected override function onRemovedFromStage(e:Event):void
 		{
 			super.onRemovedFromStage(e);
-			_removeChild(outerBg);
+			removeChild(outerBg);
 		}
 		// ========================================================== //
 		protected override function onResize(e:Event):void

@@ -8,6 +8,7 @@
 	import fl.controls.*;
 	import fl.data.*;
 	import fl.events.*;
+	import flash.text.TextSnapshot;
 	public class EditorWindow extends Sprite
 	{
 		protected var bgColor:int;
@@ -48,8 +49,8 @@
 		protected function onAddedToStage(e:Event):void
 		{
 			window_container.mask=mask_sprite;
-			super.addChild(mask_sprite);
-			super.addChild(window_container);
+			addChild(mask_sprite);
+			addChild(window_container);
 			var scaleMode:String=stage.scaleMode;
 			stage.scaleMode=StageScaleMode.SHOW_ALL;
 			startStageWidth=stage.stageWidth;
@@ -65,20 +66,23 @@
 		// ========================================================== //
 		protected function onRemovedFromStage(e:Event):void
 		{
-			super.removeChild(window_container);
-			super.removeChild(mask_sprite);
+			removeChild(window_container);
+			removeChild(mask_sprite);
 			window_container.mask=null;
 			stage.removeEventListener(Event.RESIZE,onResize);
 		}
 		// ========================================================== //
 		protected function onResize(e:Event):void
 		{
-			startX=super.x-offsetX;
-			startY=super.y-offsetY;
-			offsetX=(startStageWidth-stage.stageWidth)*0.5;
-			offsetY=(startStageHeight-stage.stageHeight)*0.5;
-			super.x=startX+offsetX;
-			super.y=startY+offsetY;
+			if(parent==stage)
+			{
+				startX=super.x-offsetX;
+				startY=super.y-offsetY;
+				offsetX=(startStageWidth-stage.stageWidth)*0.5;
+				offsetY=(startStageHeight-stage.stageHeight)*0.5;
+				super.x=startX+offsetX;
+				super.y=startY+offsetY;
+			}
 			dispatchEvent(new Event(Event.RESIZE));
 		}
 		// ========================================================== //
@@ -131,7 +135,6 @@
 			}
 			else
 				startX=value;
-			trace(1);
 		}
 		// ========================================================== //
 		public override function get y():Number
@@ -150,14 +153,9 @@
 				startY=value;
 		}
 		// ========================================================== //
-		protected function _addChild(child:DisplayObject):DisplayObject
+		public function get container():DisplayObjectContainer
 		{
-			return super.addChild(child);
-		}
-		// ========================================================== //
-		protected function _removeChild(child:DisplayObject):DisplayObject
-		{
-			return super.removeChild(child);
+			return window_container;
 		}
 		// ========================================================== //
 		public override function startDrag(lockCenter:Boolean=false, bounds:Rectangle=null):void
@@ -176,71 +174,6 @@
 		{
 			x=e.stageX-draggingX;
 			y=e.stageY-draggingY;
-		}
-		// ========================================================== //
-		public override function addChild(child:DisplayObject):DisplayObject
-		{
-			return window_container.addChild(child);
-		}
-		// ========================================================== //
-		public override function addChildAt(child:DisplayObject, index:int):DisplayObject
-		{
-			return window_container.addChildAt(child,index);
-		}
-		// ========================================================== //
-		public override function areInaccessibleObjectsUnderPoint(point:Point):Boolean
-		{
-			return window_container.areInaccessibleObjectsUnderPoint(point);
-		}
-		// ========================================================== //
-		public override function contains(child:DisplayObject):Boolean
-		{
-			return window_container.contains(child);
-		}
-		// ========================================================== //
-		public override function getChildAt(index:int):DisplayObject
-		{
-			return window_container.getChildAt(index);
-		}
-		// ========================================================== //
-		public override function getChildByName(name:String):DisplayObject
-		{
-			return window_container.getChildByName(name);
-		}
-		// ========================================================== //
-		public override function getChildIndex(child:DisplayObject):int
-		{
-			return window_container.getChildIndex(child);
-		}
-		// ========================================================== //
-		public override function getObjectsUnderPoint(point:Point):Array
-		{
-			return window_container.getObjectsUnderPoint(point);
-		}
-		// ========================================================== //
-		public override function removeChild(child:DisplayObject):DisplayObject
-		{
-			return window_container.removeChild(child);
-		}
-		// ========================================================== //
-		public override function removeChildAt(index:int):DisplayObject
-		{
-			return window_container.removeChildAt(index);
-		}
-		// ========================================================== //
-		public override function setChildIndex(child:DisplayObject, index:int):void
-		{
-			window_container.setChildIndex(child,index);
-		}
-		// ========================================================== //
-		public override function swapChildren(child1:DisplayObject, child2:DisplayObject):void
-		{
-			window_container.swapChildren(child1,child2);
-		}
-		// ========================================================== //
-		public override function swapChildrenAt(index1:int, index2:int):void
-		{
-			window_container.swapChildrenAt(index1,index2);
 		}
 		// ========================================================== //
 	}

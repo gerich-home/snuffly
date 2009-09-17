@@ -8,6 +8,7 @@
 	import fl.controls.*;
 	import fl.data.*;
 	import fl.events.*;
+	import flash.text.TextSnapshot;
 	public class ScrollerWindow extends EditorWindow
 	{
 		protected var scrollerColor:int;
@@ -33,12 +34,20 @@
 		protected override function onAddedToStage(e:Event):void
 		{
 			super.onAddedToStage(e);
-			scrollbar.x=width-scrollbar_width;
+			scrollbar.x=realWidth-scrollbar_width;
 			scrollbar.y=0;
 			scrollbar.width=scrollbar_width;
-			scrollbar.height=height;
-			scrollbar.enabled=true;
+			scrollbar.height=realHeight;
 			scrollbar.minScrollPosition=0;
+			scrollbar.height=realHeight;
+			if(scroller_height>realHeight)
+			{
+				scrollbar.enabled=true;
+				scrollbar.maxScrollPosition=scroller_height-realHeight;
+			}
+			else
+				scrollbar.enabled=false;
+			scrollbar.scrollPosition=0;
 			scrollbar.pageSize=5;
 			scrollbar.pageScrollSize=5;
 			scrollbar.lineScrollSize=5;
@@ -49,17 +58,17 @@
 			scroller_mask.x=0;
 			scroller_mask.y=0;
 			scroller.mask=scroller_mask;
-			super.addChild(scroller);
-			super.addChild(scroller_mask);
-			super.addChild(scrollbar);
+			window_container.addChild(scroller);
+			window_container.addChild(scroller_mask);
+			window_container.addChild(scrollbar);
 		}
 		// ========================================================== //
 		protected override function onRemovedFromStage(e:Event):void
 		{
 			super.onRemovedFromStage(e);
-			super.removeChild(scroller);
-			super.removeChild(scroller_mask);
-			super.removeChild(scrollbar);
+			window_container.removeChild(scroller);
+			window_container.removeChild(scroller_mask);
+			window_container.removeChild(scrollbar);
 			scroller.mask=null;
 			scrollbar.removeEventListener(Event.SCROLL,onScroll);
 			scroller.removeEventListener(MouseEvent.MOUSE_WHEEL,onMouseWheel);
@@ -72,8 +81,11 @@
 		// ========================================================== //
 		protected function onMouseWheel(e:MouseEvent):void
 		{
-			scrollbar.scrollPosition-=e.delta*5;
-			scroller.y=-scrollbar.scrollPosition;
+			if(scrollbar.enabled)
+			{
+				scrollbar.scrollPosition-=e.delta*5;
+				scroller.y=-scrollbar.scrollPosition;
+			}
 		}
 		// ========================================================== //
 		protected override function redraw():void
@@ -89,13 +101,21 @@
 			g.beginFill(scrollerColor,scrollerAlpha);
 			g.drawRect(0,0,realWidth-scrollbar_width,scroller_height);
 			g.endFill();
-			if(scroller_height>height)
+			scrollbar.height=realHeight;
+			if(scroller_height>realHeight)
 			{
 				scrollbar.enabled=true;
-				scrollbar.maxScrollPosition=scroller_height-height;
+				scrollbar.maxScrollPosition=scroller_height-realHeight;
+				scrollbar.scrollPosition=-scroller.y;
+				scroller.y=-scrollbar.scrollPosition;
 			}
 			else
 				scrollbar.enabled=false;
+		}
+		// ========================================================== //
+		public function get scrollerWidth():Number
+		{
+			return width-scrollbar_width;
 		}
 		// ========================================================== //
 		public function get scrollerHeight():Number
@@ -109,69 +129,9 @@
 			redraw();
 		}
 		// ========================================================== //
-		public override function addChild(child:DisplayObject):DisplayObject
+		public override function get container():DisplayObjectContainer
 		{
-			return scroller.addChild(child);
-		}
-		// ========================================================== //
-		public override function addChildAt(child:DisplayObject, index:int):DisplayObject
-		{
-			return scroller.addChildAt(child,index);
-		}
-		// ========================================================== //
-		public override function areInaccessibleObjectsUnderPoint(point:Point):Boolean
-		{
-			return scroller.areInaccessibleObjectsUnderPoint(point);
-		}
-		// ========================================================== //
-		public override function contains(child:DisplayObject):Boolean
-		{
-			return scroller.contains(child);
-		}
-		// ========================================================== //
-		public override function getChildAt(index:int):DisplayObject
-		{
-			return scroller.getChildAt(index);
-		}
-		// ========================================================== //
-		public override function getChildByName(name:String):DisplayObject
-		{
-			return scroller.getChildByName(name);
-		}
-		// ========================================================== //
-		public override function getChildIndex(child:DisplayObject):int
-		{
-			return scroller.getChildIndex(child);
-		}
-		// ========================================================== //
-		public override function getObjectsUnderPoint(point:Point):Array
-		{
-			return scroller.getObjectsUnderPoint(point);
-		}
-		// ========================================================== //
-		public override function removeChild(child:DisplayObject):DisplayObject
-		{
-			return scroller.removeChild(child);
-		}
-		// ========================================================== //
-		public override function removeChildAt(index:int):DisplayObject
-		{
-			return scroller.removeChildAt(index);
-		}
-		// ========================================================== //
-		public override function setChildIndex(child:DisplayObject, index:int):void
-		{
-			scroller.setChildIndex(child,index);
-		}
-		// ========================================================== //
-		public override function swapChildren(child1:DisplayObject, child2:DisplayObject):void
-		{
-			scroller.swapChildren(child1,child2);
-		}
-		// ========================================================== //
-		public override function swapChildrenAt(index1:int, index2:int):void
-		{
-			scroller.swapChildrenAt(index1,index2);
+			return scroller;
 		}
 		// ========================================================== //
 	}

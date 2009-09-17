@@ -76,7 +76,7 @@
 		protected var viscosity_b:Number;		//Параметр трения 2
 		
 		protected var activeParticles:Vector.<b2Body>;			//Активный кусок желе
-		protected var activeGroup:Vector.<Boolean>;				//Входит ли i-ая точка в желе?
+		protected var activeGroup:Vector.<Boolean>;				//Входит ли i-ая точка в активный кусок желе?
 		protected var activeChanged:Boolean;					//Произошло ли добавление/удаление ребра в активной группе?
 		
 		public var treshold:uint;			//Минимальная прозрачность воды
@@ -88,7 +88,7 @@
 		
 		protected var eventDispatcher:EventDispatcher;
 		// ========================================================== //
-		public function Jello(canvas:Bitmap,particles:IParticleGroup,spacing:Number=20,imageRadius:Number=30,rest_density:Number=1,treshold:uint=0xA0000000, visible:Boolean=true,k:Number=0.02,k_near:Number=2,kspring:Number=0.1,stretch_speed:Number=0.3,stretch_treshold:Number=0.3,compress_speed:Number=0.1,compress_treshold:Number=0.1,viscosity_a:Number=0.5,viscosity_b:Number=0.01,max_springs:int=20):void
+		public function Jello(canvas:Bitmap,particles:IParticleGroup,spacing:Number=20,imageRadius:Number=30,rest_density:Number=1,treshold:uint=0xA0000000, visible:Boolean=true,k:Number=0.02,k_near:Number=2,kspring:Number=0.1,stretch_speed:Number=0.3,stretch_treshold:Number=0.3,compress_speed:Number=0.1,compress_treshold:Number=0.1,viscosity_a:Number=0.5,viscosity_b:Number=0.01,max_springs:int=15):void
 		{
 			jelloState				=true;
 			frozen					=false;
@@ -583,7 +583,8 @@
 									{
 										activej=activeGroup[j];
 										d=sqrt(qd);
-										if(((!frozen) && (jelloState)&&(activei||activej))||((pt_statei==0)&&(pt_state[j]==0)))
+										if(((!frozen) && (jelloState)&&(activei||activej))||		//слипание двух активных кусков/слипание активного и неактивного
+												((pt_statei==0)&&(pt_state[j]==0)))					//слипание двух неактивных желе
 											if(spring_iji[j])
 												spring=spring_iji[j];
 											else if(z<max_springs)
@@ -616,7 +617,7 @@
 										if(spring)
 										{
 											spring.d=d;
-											if(!frozen)
+											if(pt_statei==0)
 											{
 												q1=spring.l;
 												q2=q1*stretch_treshold;
@@ -775,7 +776,10 @@
 					}
 					if(d>0.01)
 					{
-						q1=kspring*(s1-d);// *(1-s1*rinv)
+						if(pt_statei==1)
+							q1=kspring*(s1-d);// *(1-s1*rinv)
+						else
+							q1=2*kspring*(s1-d);
 						dx*=q1;
 						dy*=q1;
 						powerx[j]+=dx;
@@ -969,22 +973,18 @@
 		// ========================================================== //
 		//Рисуем жидкость
 		public function draw():void
-		{	/*
-			var sh:Shape=new Shape();
+		{	
+			/*var sh:Shape=new Shape();
 			var g:Graphics=sh.graphics;
 			var spring:Spring;
-			var p:FluidParticle;
-			var q:FluidParticle;
 			
 			g.clear();
 			g.lineStyle(1,0xFFFFFF);
 			spring=spring_list.next;
 			while(spring)
 			{
-				p=pt[spring.i];
-				q=pt[spring.j];
-				g.moveTo(p.xx,p.yy);
-				g.lineTo(q.xx,q.yy);
+				g.moveTo(px[spring.i]+offsetX,py[spring.i]+offsetY);
+				g.lineTo(px[spring.j]+offsetX,py[spring.j]+offsetY);
 				spring=spring.next;
 			}
 			*/
@@ -1011,7 +1011,22 @@
 			}
 			var rect:Rectangle=new Rectangle(0, 0, w, h);
 			bmp.threshold(bmp,rect, new Point(0, 0), "<", treshold);
-			//bmp.draw(sh);
+			
+			/*for (i=0; i<ptCount; i++)
+			{
+				if(activeGroup[i])
+					bmp.setPixel(px[i]+offsetX,py[i]+offsetY,0xFF0000);
+				if(pt_state[i]==0)
+					bmp.setPixel(px[i]+offsetX+2,py[i]+offsetY,0x00FF00);
+				if(pt_state[i]==1)
+					bmp.setPixel(px[i]+offsetX-2,py[i]+offsetY,0x0000FF);
+				if(pt_state[i]==2)
+					bmp.setPixel(px[i]+offsetX,py[i]+offsetY+2,0xFFFFFF);
+				
+			}
+			
+			bmp.draw(sh);
+			*/
 			//bmp.threshold(bmp,rect, new Point(0, 0), ">", 0,0xFF000000+_waterColor);
 			//bmp.colorTransform(rect,new ColorTransform(1,1,1,1,0,0,0,255));
 			bmp.unlock();
