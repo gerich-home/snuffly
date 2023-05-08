@@ -51,7 +51,7 @@ export class TestLevel {
 		*/
 	}
 
-	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, b2r: number = 1, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 100, ymin: number = 0, xmax: number = 450, ymax: number = 200): Jello {
+	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, b2r: number = 1, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 200, ymin: number = 0, xmax: number = 350, ymax: number = 200): Jello {
 		const jellopt: Body[] = [];
 
 

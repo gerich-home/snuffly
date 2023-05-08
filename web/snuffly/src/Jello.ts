@@ -686,7 +686,12 @@ export class Jello implements IDrawable, IPower {
 			const v = new this.Box2D.b2Vec2(particle.vx, particle.vy);
 			particle.body.SetLinearVelocity(v);
 			this.Box2D.destroy(v);
+
+			const p = new this.Box2D.b2Vec2(0, -0.06 * (Math.sin(cntr / 50)));
+			particle.body.ApplyForceToCenter(p, true);
+			this.Box2D.destroy(p);
 		}
+		cntr++;
 	}
 
 	draw(ctx: CanvasRenderingContext2D): void {
@@ -777,3 +782,5 @@ export class Spring {
 		this.l = l;
 	}
 }
+
+let cntr = 0;
