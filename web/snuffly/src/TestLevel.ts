@@ -18,7 +18,7 @@ export class TestLevel {
 	) {
 		this.world = this.createBox2DWorld(Box2D);
 		const jello = this.createJello(Box2D, this.world, 100, 20, 8);
-		const cmCalc = new CMCalculator(jello.pt);
+		const cmCalc = new CMCalculator(jello.particles);
 
 		this.drawables = [
 			jello
