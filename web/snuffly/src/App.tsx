@@ -31,7 +31,9 @@ function App() {
     ctx.scale(1.5, 1.5);
     ctx.fillStyle = '#000000';
 
-    testLevel.step(deltaTime / 1000);
+    for(let i = 0; i < 10; i++) {
+      testLevel.step(deltaTime / 1000);
+    }
     testLevel.draw(ctx);
 
     ctx.restore();
