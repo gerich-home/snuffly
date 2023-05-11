@@ -1,7 +1,7 @@
 ﻿import { IDrawable } from "./core/IDrawable";
 import { IPower } from "./core/IPower";
-import { Body, Box2D } from "./Box2D";
-import { Particle } from "./Particle";
+import { Body, Box2D, Vec2 } from "./Box2D";
+import { Particle, Vector } from "./Particle";
 
 export class Jello implements IDrawable, IPower {
 	ptCount: number;								//Количество частиц
@@ -115,15 +115,15 @@ export class Jello implements IDrawable, IPower {
 			nsq1: [],
 			nsq2: [],
 			spring_ij: this.createArrayOf(() => null, i),
-			power: { x: 0, y: 0 },
+			power: Vector.zero,
 			press: 0,
 			press_near: 0,
 			pt_springs: 0,
 			pt_state: 0,
-			p: { x: 0, y: 0 },
+			p: Vector.zero,
 			ro: 0,
 			ro_near: 0,
-			v: { x: 0, y: 0 },
+			v: Vector.zero,
 			activeGroup: false,
 			groupqueue: 0,
 		}));
@@ -265,7 +265,8 @@ export class Jello implements IDrawable, IPower {
 
 		for (let i = 0; i < this.ptCount; i++) {
 			const particle = this.particles[i];
-			const vec1 = particle.body.GetPosition();
+			const vec1 = Vector.fromB2D(particle.body.GetPosition());
+
 			const pxf = vec1.x * this.rinvhalf;
 			const pyf = vec1.y * this.rinvhalf;
 
@@ -320,17 +321,10 @@ export class Jello implements IDrawable, IPower {
 
 			particle.ro = 0;
 			particle.ro_near = 0;
-			particle.power = { x: 0, y: 0 };
-			particle.p = {
-				x: vec1.x,
-				y: vec1.y,
-			};
+			particle.power = Vector.zero;
+			particle.p = vec1;
 
-			const vec2 = particle.body.GetLinearVelocity();
-			particle.v = {
-				x: vec2.x,
-				y: vec2.y,
-			};
+			particle.v = Vector.fromB2D(particle.body.GetLinearVelocity());
 
 			particle.ij = this.createArrayOf(() => 0, i);
 		}
@@ -429,18 +423,16 @@ export class Jello implements IDrawable, IPower {
 										particleJ.ro_near += q3;
 										particleI.nsq1.push(q1);
 										particleI.nsq2.push(q2);
-
+										
 										q3 = 1 / d;
 										dx *= q3;
 										dy *= q3;
+										const dv = new Vector(dx, dy);
 										if (spring) {
-											spring.dx = dx;
-											spring.dy = dy;
+											
+											spring.dv = dv;
 										}
-										particleI.nsd.push({
-											x: dx,
-											y: dy,
-										});
+										particleI.nsd.push(dv);
 
 										const s3 = (v.x - particleJ.v.x) * dx + (v.y - particleJ.v.y) * dy;
 										if (s3 > 0) {
@@ -452,14 +444,9 @@ export class Jello implements IDrawable, IPower {
 											}
 											dx *= s1;
 											dy *= s1;
-											v = {
-												x: v.x - dx,
-												y: v.y - dy,
-											};
-											particleJ.v = {
-												x: particleJ.v.x + dx,
-												y: particleJ.v.y + dy,
-											};
+											const dv = new Vector(dx, dy);
+											v = v.sub(dv);
+											particleJ.v = particleJ.v.add(dv);
 										}
 										particleI.ij[j] = 1;
 									} else {
@@ -502,16 +489,13 @@ export class Jello implements IDrawable, IPower {
 				continue;
 			} else {
 				let d = spring.d;
-				let dx: number;
-				let dy: number;
+				let dv: Vector;
 				if (d < 0) {
-					dx = particleJ.p.x - particleI.p.x;
-					dy = particleJ.p.y - particleI.p.y;
-					d = Math.sqrt(dx * dx + dy * dy);
+					dv = particleJ.p.sub(particleI.p);
+					d = dv.length;
 					if (d > 0.01) {
 						const q1 = 1 / d;
-						dx *= q1;
-						dy *= q1;
+						dv = dv.mul(q1);
 					}
 					if (particleI.pt_state === 1) {
 						if ((d > 4 * this.r) || ((d > 2 * this.r) && ((particleI.pt_springs < 5) || (particleJ.pt_springs < 5)))) {
@@ -545,8 +529,7 @@ export class Jello implements IDrawable, IPower {
 						}
 					}
 				} else {
-					dx = spring.dx;
-					dy = spring.dy;
+					dv = spring.dv;
 					spring.d = -1;
 				}
 				if (d > 0.01) {
@@ -556,16 +539,9 @@ export class Jello implements IDrawable, IPower {
 					} else {
 						q1 = 2 * this.kspring * (s1 - d);
 					}
-					dx *= q1;
-					dy *= q1;
-					particleJ.power = {
-						x: particleJ.power.x + dx,
-						y: particleJ.power.y + dy,
-					};
-					particleI.power = {
-						x: particleI.power.x - dx,
-						y: particleI.power.y - dy,
-					};
+					dv = dv.mul(q1);
+					particleJ.power = particleJ.power.add(dv);
+					particleI.power = particleI.power.sub(dv);
 				}
 			}
 			prev = spring;
@@ -654,8 +630,7 @@ export class Jello implements IDrawable, IPower {
 		}
 
 		for (const particle of this.particles) {
-			let dx = 0;
-			let dy = 0;
+			let dv = Vector.zero;
 
 			for (let j = 0; j < particle.ns.length; j++) {
 				const particleZ = this.particles[particle.ns[j]];
@@ -663,45 +638,41 @@ export class Jello implements IDrawable, IPower {
 				const dn = (particle.press + particleZ.press) * particle.nsq1[j] +
 					(particle.press_near + particleZ.press_near) * particle.nsq2[j];
 
-				const qx = particle.nsd[j].x * dn;
-				dx += qx;
-				const qy = particle.nsd[j].y * dn;
-				dy += qy;
+				const q = particle.nsd[j].mul(dn);
 
-				particleZ.power = {
-					x: particleZ.power.x + qx,
-					y: particleZ.power.y + qy,
-				};
+				dv = dv.add(q);
+				particleZ.power = particleZ.power.add(q);
 			}
 
-			particle.power = {
-				x: particle.power.x - dx,
-				y: particle.power.y - dy,
-			};
+			particle.power = particle.power.sub(dv);
 		}
 
 		for (const particle of this.particles) {
-			const dx = particle.power.x;
-			const dy = particle.power.y;
-			const d = Math.sqrt(dx * dx + dy * dy);
+			const dv = particle.power;
+			const d = dv.length;
 			if (d > 2) {
-				const v = new this.Box2D.b2Vec2(2 * dx / d, 2 * dy / d);
-				particle.body.ApplyForceToCenter(v, true);
-				this.Box2D.destroy(v);
+				dv.mul(2 / d)
+					.asB2D(this.Box2D, v => {
+						particle.body.ApplyForceToCenter(v, true);
+					});
 			} else if (d > 0.09) {
-				const v = new this.Box2D.b2Vec2(dx, dy);
-				particle.body.ApplyForceToCenter(v, true);
-				this.Box2D.destroy(v);
+				dv
+					.asB2D(this.Box2D, v => {
+						particle.body.ApplyForceToCenter(v, true);
+					});
 			}
 
-			const v = new this.Box2D.b2Vec2(particle.v.x, particle.v.y);
-			particle.body.SetLinearVelocity(v);
-			this.Box2D.destroy(v);
+			particle.v
+				.asB2D(this.Box2D, v => {
+					particle.body.SetLinearVelocity(v);
+				});
 
-			const p = new this.Box2D.b2Vec2(0, -0.06 * (Math.sin(cntr / 50)));
-			particle.body.ApplyForceToCenter(p, true);
-			this.Box2D.destroy(p);
+			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
+				.asB2D(this.Box2D, v => {
+					particle.body.ApplyForceToCenter(v, true);
+				});
 		}
+
 		cntr++;
 	}
 
@@ -774,8 +745,7 @@ export class Jello implements IDrawable, IPower {
 //Пластичная связь
 export class Spring {
 	d: number = 0;
-	dx: number = 0;
-	dy: number = 0;
+	dv: Vector = Vector.zero;
 	l: number;
 	i: number;
 	j: number;

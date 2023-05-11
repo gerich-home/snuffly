@@ -1,9 +1,62 @@
-import { Body } from "./Box2D";
+import { Body, Box2D, Vec2 } from "./Box2D";
 import { Spring } from "./Jello";
 
-export type Vector ={
-	readonly x: number;
-	readonly y: number;
+export class Vector {
+	constructor(
+		public readonly x: number,
+		public readonly y: number
+	) {}
+
+	static readonly zero = new Vector(0, 0);
+
+	static fromB2D(v: Vec2) {
+		return new Vector(
+			v.x,
+			v.y
+		);
+	}
+
+	asB2D<T>(box2d: Box2D, action: (v: Vec2) => T): T {
+		let v: Vec2 | null = null;
+		try{
+			v = new box2d.b2Vec2(this.x, this.y);
+			return action(v);
+		}
+		finally {
+			if (v) {
+				box2d.destroy(v);
+			}
+		}
+	}
+
+	get length() {
+		return Math.sqrt(this.x * this.x + this.y * this.y);
+	}
+	
+	get length2() {
+		return this.x * this.x + this.y * this.y;
+	}
+
+	mul(a: number): Vector {
+		return new Vector(
+			this.x * a,
+			this.y * a,
+		);
+	}
+
+	add(v: Vector): Vector {
+		return new Vector(
+			this.x + v.x,
+			this.y + v.y,
+		);
+	}
+
+	sub(v: Vector): Vector {
+		return new Vector(
+			this.x - v.x,
+			this.y - v.y,
+		);
+	}
 };
 
 export type Particle = {
