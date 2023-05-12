@@ -133,28 +133,8 @@ export class Jello implements IDrawable, IPower {
 			this.particles[0].activeGroup = true;
 		}
 
-		//Возращаем в пул лишнее
-		let spring: Spring | null = this.spring_pool.next;
-		let j = 0;
-		while (spring) {
-			j++;
-			spring = spring.next;
-		}
-
-		spring = this.spring_list.next;
-		while (spring) {
-			j++;
-			if (!spring.next) {
-				spring.next = this.spring_pool.next;
-				this.spring_pool.next = this.spring_list.next;
-				break;
-			}
-			spring = spring.next;
-		}
-		this.spring_list.next = null;
-
-		j = max_springs * this.ptCount * 0.5 - j;
-		for (let i = 0; i < j; i++) {
+		const stringPoolSize = max_springs * this.ptCount * 0.5;
+		for (let i = 0; i < stringPoolSize; i++) {
 			this.spring_pool.next = new Spring(this.spring_pool.next);
 		}
 	}
