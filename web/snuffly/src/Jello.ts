@@ -267,14 +267,13 @@ export class Jello implements IDrawable, IPower {
 			const particle = this.particles[i];
 			const vec1 = Vector.fromB2D(particle.body.GetPosition());
 
-			const pxf = vec1.x * this.rinvhalf;
-			const pyf = vec1.y * this.rinvhalf;
+			const pf = vec1.mul(this.rinvhalf);
 
-			const s1 = Math.floor(pxf - 0.5);
-			const s2 = Math.floor(pxf + 0.5);
+			const s1 = Math.floor(pf.x - 0.5);
+			const s2 = Math.floor(pf.x + 0.5);
 
-			const dy1 = pyf + 0.5;
-			for (let y1 = pyf - 0.5; y1 <= dy1; y1++) {
+			const dy1 = pf.y + 0.5;
+			for (let y1 = pf.y - 0.5; y1 <= dy1; y1++) {
 				const q1 = Math.floor(y1);
 				const j = sector_y.indexOf(q1);
 
@@ -352,11 +351,10 @@ export class Jello implements IDrawable, IPower {
 						const j = c[cj];
 						const particleJ = this.particles[j];
 						if (particleI.ij[j] === 0) {
-							let dx = particleJ.p.x - particleI.p.x;
-							let qd = dx * dx;
+							let dv = particleJ.p.sub(particleI.p);
+							let qd = dv.x * dv.x;
 							if (qd < this.rsq) {
-								let dy = particleJ.p.y - particleI.p.y;
-								qd += dy * dy;
+								qd += dv.y * dv.y;
 								if (qd < this.rsq) {
 									let spring: Spring | null = null;
 
@@ -416,7 +414,7 @@ export class Jello implements IDrawable, IPower {
 
 										const q1 = 1 - d * this.rinv;
 										const q2 = q1 * q1;
-										let q3 = q2 * q1;
+										const q3 = q2 * q1;
 										s4 += q2;
 										s5 += q3;
 										particleJ.ro += q2;
@@ -424,27 +422,17 @@ export class Jello implements IDrawable, IPower {
 										particleI.nsq1.push(q1);
 										particleI.nsq2.push(q2);
 										
-										q3 = 1 / d;
-										dx *= q3;
-										dy *= q3;
-										const dv = new Vector(dx, dy);
-										if (spring) {
-											
+										dv = dv.mul(1 / d);
+										if (spring) {											
 											spring.dv = dv;
 										}
 										particleI.nsd.push(dv);
 
-										const s3 = (v.x - particleJ.v.x) * dx + (v.y - particleJ.v.y) * dy;
+										const s3 = v.sub(particleJ.v).dot(dv);
 										if (s3 > 0) {
-											let s1: number;
-											if (s3 > 100) {
-												s1 = q1 * (this.viscosity_a + this.viscosity_b * 100) * 100;
-											} else {
-												s1 = q1 * (this.viscosity_a + this.viscosity_b * s3) * s3;
-											}
-											dx *= s1;
-											dy *= s1;
-											const dv = new Vector(dx, dy);
+											const s4 = (s3 > 100) ? 100 : s3
+											const s1 = q1 * (this.viscosity_a + this.viscosity_b * s4) * s4;
+											dv = dv.mul(s1);
 											v = v.sub(dv);
 											particleJ.v = particleJ.v.add(dv);
 										}

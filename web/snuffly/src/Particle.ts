@@ -57,6 +57,10 @@ export class Vector {
 			this.y - v.y,
 		);
 	}
+
+	dot(v: Vector): number {
+		return this.x * v.x + this.y * v.y;
+	}
 };
 
 export type Particle = {
