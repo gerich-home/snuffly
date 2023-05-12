@@ -237,11 +237,7 @@ export class Jello implements IDrawable, IPower {
 	// }
 
 	applyPower(): void {
-
-		const sector_yx: number[][] = [];
-		const sector_yxi: number[][][] = [];
-
-		const sector_y: number[] = [];
+		const sector_y = new Map<number, Map<number, number[]>>();
 
 		for (let i = 0; i < this.ptCount; i++) {
 			const particle = this.particles[i];
@@ -251,47 +247,52 @@ export class Jello implements IDrawable, IPower {
 
 			const s1 = Math.floor(pf.x - 0.5);
 			const s2 = Math.floor(pf.x + 0.5);
+			const q1 = Math.floor(pf.y - 0.5);
+			const q2 = Math.floor(pf.y + 0.5);
 
-			const dy1 = pf.y + 0.5;
-			for (let y1 = pf.y - 0.5; y1 <= dy1; y1++) {
-				const q1 = Math.floor(y1);
-				const j = sector_y.indexOf(q1);
-
-				let a: number[];
-				let b: number[][];
-				if (j < 0) {
-					a = [];
-					b = [];
-					sector_y.push(q1);
-					sector_yx.push(a);
-					sector_yxi.push(b);
-				} else {
-					a = sector_yx[j];
-					b = sector_yxi[j];
-				}
-
-				const j2 = a.indexOf(s1);
-				let c: number[];
-				if (j2 < 0) {
-					a.push(s1);
-					c = [];
-					b.push(c);
-				} else {
-					c = b[j2];
-				}
-				c.push(i);
-
-				const j3 = a.indexOf(s2);
-				if (j3 < 0) {
-					a.push(s2);
-					c = [];
-					b.push(c);
-				} else {
-					c = b[j3];
-				}
-				c.push(i);
-
+			let z1 = sector_y.get(q1);
+			if (!z1) {
+				z1 = new Map<number, number[]>();
+				sector_y.set(q1, z1);
 			}
+			
+			let w11 = z1.get(s1);
+			if (!w11) {
+				w11 = [];
+				z1.set(s1, w11);
+			}
+			
+			w11.push(i);
+			
+			let w12 = z1.get(s2);
+			if (!w12) {
+				w12 = [];
+				z1.set(s2, w12);
+			}
+			
+			w12.push(i);
+			
+			let z2 = sector_y.get(q2);
+			if (!z2) {
+				z2 = new Map<number, number[]>();
+				sector_y.set(q2, z2);
+			}
+			
+			let w21 = z2.get(s1);
+			if (!w21) {
+				w21 = [];
+				z2.set(s1, w21);
+			}
+			
+			w21.push(i);
+			
+			let w22 = z2.get(s2);
+			if (!w22) {
+				w22 = [];
+				z2.set(s2, w22);
+			}
+			
+			w22.push(i);
 
 			particle.ns = [];
 			particle.nsq1 = [];
@@ -311,14 +312,10 @@ export class Jello implements IDrawable, IPower {
 		this.activeChanged = false;
 
 		let spring: Spring | null = null;
-		const gli = sector_yxi.length;
-		for (let gi = 0; gi < gli; gi++) {
-			const b = sector_yxi[gi];
-			const glj = b.length;
-			for (let gj = 0; gj < glj; gj++) {
-				const c = b[gj];
-				const glc = c.length - 1;
-				for (let ci = 0; ci <= glc; ci++) {
+		sector_y.forEach(b =>
+			b.forEach(c => {
+				const cl = c.length;
+				for (let ci = 1; ci < cl; ci++) {
 					const i = c[ci];
 					const particleI = this.particles[i];
 					let s4 = particleI.ro;
@@ -332,9 +329,8 @@ export class Jello implements IDrawable, IPower {
 						const particleJ = this.particles[j];
 						if (particleI.ij[j] === 0) {
 							let dv = particleJ.p.sub(particleI.p);
-							let qd = dv.x * dv.x;
-							if (qd < this.rsq) {
-								qd += dv.y * dv.y;
+							if (dv.x < this.r) {
+								let qd = dv.length2;
 								if (qd < this.rsq) {
 									let spring: Spring | null = null;
 
@@ -434,8 +430,8 @@ export class Jello implements IDrawable, IPower {
 					particleI.v = v;
 					particleI.pt_state = pt_statei;
 				}
-			}
-		}
+			})
+		);
 
 		spring = this.spring_list.next;
 		let prev = this.spring_list;
