@@ -65,7 +65,9 @@ export class Vector {
 
 export type Particle = {
 	readonly body: Body; //Частицы желе
-	ij: number[]; //Просмотрена ли пара соседей ij(0-не просмотрена, 1-они соседи, -1-не соседи)?
+	ij: {
+		[k: number]: number;
+	}; //Просмотрена ли пара соседей ij(0-не просмотрена, 1-они соседи, -1-не соседи)?
 	spring_ij: (null | Spring)[]; //Связь между частицами i и j(null, если её нет)
 
 

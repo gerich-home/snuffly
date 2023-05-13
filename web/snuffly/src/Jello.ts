@@ -109,7 +109,7 @@ export class Jello implements IDrawable, IPower {
 
 		this.particles = particles.map<Particle>((body, i) => ({
 			body,
-			ij: [],
+			ij: {},
 			ns: [],
 			nsd: [],
 			nsq1: [],
@@ -306,7 +306,7 @@ export class Jello implements IDrawable, IPower {
 
 			particle.v = Vector.fromB2D(particle.body.GetLinearVelocity());
 
-			particle.ij = this.createArrayOf(() => 0, i);
+			particle.ij = {};
 		}
 
 		this.activeChanged = false;
@@ -327,103 +327,109 @@ export class Jello implements IDrawable, IPower {
 					for (let cj = 0; cj < ci; cj++) {
 						const j = c[cj];
 						const particleJ = this.particles[j];
-						if (particleI.ij[j] === 0) {
-							let dv = particleJ.p.sub(particleI.p);
-							if (dv.x < this.r) {
-								let qd = dv.length2;
-								if (qd < this.rsq) {
-									let spring: Spring | null = null;
+						if (j in particleI.ij) {
+							continue;
+						}
 
-									const d = Math.sqrt(qd);
-									if (((!this.frozen) && (this.jelloState) && (particleI.activeGroup || particleJ.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
-										((pt_statei === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
-										if (particleI.spring_ij[j]) {
-											spring = particleI.spring_ij[j];
-										} else if (z < this.max_springs) {
-											if (particleJ.pt_springs < this.max_springs) {
-												spring = this.spring_pool.next;
-												if (spring) {
-													this.spring_pool.next = spring.next;
-													spring.next = this.spring_list.next;
-													spring.i = i;
-													spring.j = j;
-													spring.l = d;
-													particleI.spring_ij[j] = spring;
-													this.spring_list.next = spring;
-													z++;
-													particleJ.pt_springs++;
-													particleJ.pt_state = 0;
-													pt_statei = 0;
-													if (particleI.activeGroup) {
-														if (!particleJ.activeGroup) {
-															this.activeChanged = true;
-														}
-													} else if (particleJ.activeGroup) {
-														this.activeChanged = true;
-													}
-												}
-											}
-										}
-									}
+						let dv = particleJ.p.sub(particleI.p);
+						if (dv.x > this.r) {
+							particleI.ij[j] = -1;
+							continue;
+						}
+						
+						let qd = dv.length2;
+						if (qd > this.rsq) {
+							particleI.ij[j] = -1;
+							continue;
+						}
 
+						let spring: Spring | null = null;
 
+						const d = Math.sqrt(qd);
+						if (((!this.frozen) && (this.jelloState) && (particleI.activeGroup || particleJ.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
+							((pt_statei === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
+							if (particleI.spring_ij[j]) {
+								spring = particleI.spring_ij[j];
+							} else if (z < this.max_springs) {
+								if (particleJ.pt_springs < this.max_springs) {
+									spring = this.spring_pool.next;
 									if (spring) {
-										spring.d = d;
-										if (pt_statei === 0) {
-											const q1 = spring.l;
-											let q2 = q1 * this.stretch_treshold;
-											let q3 = d - q1;
-											if (q3 > q2) {
-												spring.l += q1 * this.rinv * this.stretch_speed * (q3 - q2);
-											} else {
-												q2 = q1 * this.compress_treshold;
-												q3 = d - q1;
-												if (q3 < -q2) {
-													spring.l += q1 * this.rinv * this.compress_speed * (q3 + q2);
-												}
+										this.spring_pool.next = spring.next;
+										spring.next = this.spring_list.next;
+										spring.i = i;
+										spring.j = j;
+										spring.l = d;
+										particleI.spring_ij[j] = spring;
+										this.spring_list.next = spring;
+										z++;
+										particleJ.pt_springs++;
+										particleJ.pt_state = 0;
+										pt_statei = 0;
+										if (particleI.activeGroup) {
+											if (!particleJ.activeGroup) {
+												this.activeChanged = true;
 											}
+										} else if (particleJ.activeGroup) {
+											this.activeChanged = true;
 										}
 									}
-
-									if (d > 0.01) {
-										particleI.ns.push(j);
-
-										const q1 = 1 - d * this.rinv;
-										const q2 = q1 * q1;
-										const q3 = q2 * q1;
-										s4 += q2;
-										s5 += q3;
-										particleJ.ro += q2;
-										particleJ.ro_near += q3;
-										particleI.nsq1.push(q1);
-										particleI.nsq2.push(q2);
-										
-										dv = dv.mul(1 / d);
-										if (spring) {											
-											spring.dv = dv;
-										}
-										particleI.nsd.push(dv);
-
-										const s3 = v.sub(particleJ.v).dot(dv);
-										if (s3 > 0) {
-											const s4 = (s3 > 100) ? 100 : s3
-											const s1 = q1 * (this.viscosity_a + this.viscosity_b * s4) * s4;
-											dv = dv.mul(s1);
-											v = v.sub(dv);
-											particleJ.v = particleJ.v.add(dv);
-										}
-										particleI.ij[j] = 1;
-									} else {
-										particleI.ij[j] = -1;
-									}
-								} else {
-									particleI.ij[j] = -1;
 								}
-							} else {
-								particleI.ij[j] = -1;
 							}
 						}
+
+
+						if (spring) {
+							spring.d = d;
+							if (pt_statei === 0) {
+								const q1 = spring.l;
+								let q2 = q1 * this.stretch_treshold;
+								let q3 = d - q1;
+								if (q3 > q2) {
+									spring.l += q1 * this.rinv * this.stretch_speed * (q3 - q2);
+								} else {
+									q2 = q1 * this.compress_treshold;
+									q3 = d - q1;
+									if (q3 < -q2) {
+										spring.l += q1 * this.rinv * this.compress_speed * (q3 + q2);
+									}
+								}
+							}
+						}
+
+						if (d <= 0.01) {
+							particleI.ij[j] = -1;
+							continue;
+						}
+
+						particleI.ns.push(j);
+
+						const q1 = 1 - d * this.rinv;
+						const q2 = q1 * q1;
+						const q3 = q2 * q1;
+						s4 += q2;
+						s5 += q3;
+						particleJ.ro += q2;
+						particleJ.ro_near += q3;
+						particleI.nsq1.push(q1);
+						particleI.nsq2.push(q2);
+						
+						dv = dv.mul(1 / d);
+						if (spring) {											
+							spring.dv = dv;
+						}
+						particleI.nsd.push(dv);
+
+						const s3 = v.sub(particleJ.v).dot(dv);
+						if (s3 > 0) {
+							const s4 = (s3 > 100) ? 100 : s3
+							const s1 = q1 * (this.viscosity_a + this.viscosity_b * s4) * s4;
+							dv = dv.mul(s1);
+							v = v.sub(dv);
+							particleJ.v = particleJ.v.add(dv);
+						}
+						particleI.ij[j] = 1;
 					}
+					
 					particleI.ro = s4;
 					particleI.ro_near = s5;
 					particleI.pt_springs = z;
