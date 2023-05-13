@@ -17,7 +17,7 @@ export class TestLevel {
 		Box2D: Box2D
 	) {
 		this.world = this.createBox2DWorld(Box2D);
-		const jello = this.createJello(Box2D, this.world, 100, 20, 8);
+		const jello = this.createJello(Box2D, this.world, 1000, 20, 8);
 		const cmCalc = new CMCalculator(jello.particles);
 
 		this.drawables = [
@@ -51,7 +51,7 @@ export class TestLevel {
 		*/
 	}
 
-	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, b2r: number = 1, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 200, ymin: number = 0, xmax: number = 350, ymax: number = 200): Jello {
+	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, b2r: number = 1, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 50, ymin: number = 0, xmax: number = 2000, ymax: number = 300): Jello {
 		const jellopt: Body[] = [];
 
 
@@ -59,12 +59,32 @@ export class TestLevel {
 		//let bmp1: BitmapData = FluidParticle.drawBubble(1.5 * r, 0xFFEE00);
 		//let bmp2: BitmapData = FluidParticle.drawBubble(1.5 * r, 0xFF7700);
 
+		const offscreen = new OffscreenCanvas(xmax - xmin, ymax - ymin);
+		const ctx: any = offscreen.getContext("2d");
+		if(!ctx) {
+			throw new Error();
+		}
+		
+		ctx.font = "300px serif";
+		const s = ctx.measureText("M");
+
+		console.log(s.width, s.height);
+		
+		ctx.fillText("HELLO MAX", 0, ymax - ymin);
+	
 		for (let i = 0; i < count; i++) {
+			while(true) {
 			const bodyDef = new Box2D.b2BodyDef();
 			bodyDef.fixedRotation = true;
 			//bodyDef.userData = ((unumber(Math.random() * 2) === 0) ? bmp1 : bmp2);
-			bodyDef.position.x = xmin + (xmax - xmin) * Math.random();
-			bodyDef.position.y = ymin + (ymax - ymin) * Math.random();
+			const x = xmin + (xmax - xmin) * Math.random();
+			const y = ymin + (ymax - ymin) * Math.random();
+			const p = ctx.getImageData(Math.floor(x - xmin), Math.floor(y - ymin), 1, 1).data;
+			if (p[0] === 0 && p[1] === 0 && p[2] === 0 && p[3] === 0) {
+				continue;
+			}
+			bodyDef.position.x = x;
+			bodyDef.position.y = y;
 			bodyDef.type = 2;
 
 			const circleDef = new Box2D.b2CircleShape();
@@ -81,6 +101,8 @@ export class TestLevel {
 			const body = world.CreateBody(bodyDef);
 			body.CreateFixture(circleFixtureDef);
 			jellopt.push(body);
+			break;
+			}
 		}
 
 		return new Jello(Box2D, jellopt, r, 1.5 * r, rest_density, 0xB << 30);
@@ -88,7 +110,7 @@ export class TestLevel {
 
 	// ========================================================== //
 	private createBox2DWorld(Box2D: Box2D): World {
-		const gravity = new Box2D.b2Vec2(0.0, 0.2 * pixelScale);
+		const gravity = new Box2D.b2Vec2(0.0, 0);//0.2 * pixelScale);
 
 		const world = new Box2D.b2World(gravity);
 
@@ -111,8 +133,8 @@ export class TestLevel {
 		boxFixtureDef.shape = boxDef;
 		boxFixtureDef.friction = 0.5;
 		boxFixtureDef.density = 0;
-		const body = world.CreateBody(bodyDef);
-		body.CreateFixture(boxFixtureDef);
+		//const body = world.CreateBody(bodyDef);
+		//body.CreateFixture(boxFixtureDef);
 
 		// SG
 		// bodyDef = new b2BodyDef();

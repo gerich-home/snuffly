@@ -429,7 +429,7 @@ export class Jello implements IDrawable, IPower {
 						}
 						particleI.ij[j] = 1;
 					}
-					
+
 					particleI.ro = s4;
 					particleI.ro_near = s5;
 					particleI.pt_springs = z;
@@ -637,17 +637,17 @@ export class Jello implements IDrawable, IPower {
 					particle.body.SetLinearVelocity(v);
 				});
 
-			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
-				.asB2D(this.Box2D, v => {
-					particle.body.ApplyForceToCenter(v, true);
-				});
+			//new Vector(0, (Math.sin(cntr / 80) * 0.01))
+			//	.asB2D(this.Box2D, v => {
+			//		particle.body.ApplyForceToCenter(v, true);
+			//	});
 		}
 
 		cntr++;
 	}
 
 	draw(ctx: CanvasRenderingContext2D): void {
-		let spring = this.spring_list.next;
+		/*let spring = this.spring_list.next;
 		while (spring) {
 			ctx.beginPath();
 			const p1 = this.particles[spring.i].body.GetPosition();
@@ -656,12 +656,12 @@ export class Jello implements IDrawable, IPower {
 			ctx.lineTo(p2.x, p2.y);
 			ctx.stroke();
 			spring = spring.next;
-		}
+		}*/
 
 		for (const particle of this.particles) {
 			const p = particle.body.GetPosition();
 			ctx.beginPath();
-			ctx.ellipse(p.x, p.y, 1, 1, 0, 0, 2 * Math.PI);
+			ctx.ellipse(p.x / 4, p.y / 4, 1, 1, 0, 0, 2 * Math.PI);
 			ctx.stroke();
 		}
 

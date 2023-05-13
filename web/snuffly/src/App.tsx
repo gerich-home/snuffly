@@ -31,8 +31,8 @@ function App() {
     ctx.scale(1.5, 1.5);
     ctx.fillStyle = '#000000';
 
-    for(let i = 0; i < 10; i++) {
-      testLevel.step(deltaTime / 1000);
+    for(let i = 0; i < 3; i++) {
+      testLevel.step(deltaTime / 500);
     }
     testLevel.draw(ctx);
 
@@ -74,7 +74,7 @@ function App() {
 
   return (
     <div className="App">
-      <canvas width={800} height={600} ref={canvasRef} />
+      <canvas width={1200} height={600} ref={canvasRef} />
     </div>
   );
 }
