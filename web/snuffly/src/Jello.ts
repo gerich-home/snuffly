@@ -124,6 +124,7 @@ export class Jello implements IDrawable, IPower {
 			ro: 0,
 			ro_near: 0,
 			v: Vector.zero,
+			delta_v: Vector.zero,
 			activeGroup: false,
 			groupqueue: 0,
 		}));
@@ -305,6 +306,7 @@ export class Jello implements IDrawable, IPower {
 			particle.p = vec1;
 
 			particle.v = Vector.fromB2D(particle.body.GetLinearVelocity());
+			particle.delta_v = Vector.zero;
 
 			particle.ij = {};
 		}
@@ -320,7 +322,8 @@ export class Jello implements IDrawable, IPower {
 					const particleI = this.particles[i];
 					let s4 = particleI.ro;
 					let s5 = particleI.ro_near;
-					let v = particleI.v;
+					const v = particleI.v;
+					let delta_v = particleI.delta_v;
 					let z = particleI.pt_springs;
 					let pt_statei = particleI.pt_state;
 
@@ -424,8 +427,8 @@ export class Jello implements IDrawable, IPower {
 							const s4 = (s3 > 100) ? 100 : s3
 							const s1 = q1 * (this.viscosity_a + this.viscosity_b * s4) * s4;
 							dv = dv.mul(s1);
-							v = v.sub(dv);
-							particleJ.v = particleJ.v.add(dv);
+							delta_v = delta_v.sub(dv);
+							particleJ.delta_v = particleJ.delta_v.add(dv);
 						}
 						particleI.ij[j] = 1;
 					}
@@ -433,7 +436,7 @@ export class Jello implements IDrawable, IPower {
 					particleI.ro = s4;
 					particleI.ro_near = s5;
 					particleI.pt_springs = z;
-					particleI.v = v;
+					particleI.delta_v = delta_v;
 					particleI.pt_state = pt_statei;
 				}
 			})
@@ -632,15 +635,15 @@ export class Jello implements IDrawable, IPower {
 					});
 			}
 
-			particle.v
+			particle.v.add(particle.delta_v)
 				.asB2D(this.Box2D, v => {
 					particle.body.SetLinearVelocity(v);
 				});
 
-			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
+			/*new Vector(0, -0.06 * (Math.sin(cntr / 50)))
 				.asB2D(this.Box2D, v => {
 					particle.body.ApplyForceToCenter(v, true);
-				});
+				});*/
 		}
 
 		cntr++;

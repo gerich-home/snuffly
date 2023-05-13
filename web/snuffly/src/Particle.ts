@@ -85,6 +85,7 @@ export type Particle = {
 	power: Vector; //Суммарные силы от связей и давления
 	p: Vector; //Координаты
 	v: Vector; //Скорость
+	delta_v: Vector; //Изменение скорости
 	pt_springs: number; //Число связей у частицы
 	pt_state: number; //Состояние частицы(0-липкая, 1-упругая, 2-жидкая)
 
