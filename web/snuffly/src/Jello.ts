@@ -343,46 +343,55 @@ export class Jello implements IDrawable, IPower {
 				for (let ci = 1; ci < cl; ci++) {
 					const i = c[ci];
 					const particleI = particles[i];
+					const v_i = particleI.v;
+					const ij_i = particleI.ij;
+					const p_i = particleI.p;
+					const spring_ij_i = particleI.spring_ij;
+					const activeGroup_i = particleI.activeGroup;
+					const ns_i = particleI.ns;
+					const nsq1_i = particleI.nsq1;
+					const nsq2_i = particleI.nsq2;
+					const nsd_i = particleI.nsd;
+					
 					let delta_ro_i = 0;
 					let delta_ro_near_i = 0;
-					const v = particleI.v;
 					let delta_v_i = Vector.zero;
 					let pt_springs_i = particleI.pt_springs;
-					let pt_statei = particleI.pt_state;
+					let pt_state_i = particleI.pt_state;
 
 					for (let cj = 0; cj < ci; cj++) {
 						const j = c[cj];
 						const particleJ = particles[j];
-						if (j in particleI.ij) {
+						if (j in ij_i) {
 							continue;
 						}
 
-						const dx = particleJ.p.x - particleI.p.x;
+						const dx = particleJ.p.x - p_i.x;
 						if (dx > r || dx < -r) {
-							particleI.ij[j] = -1;
+							ij_i[j] = -1;
 							continue;
 						}
 						
-						const dy = particleJ.p.y - particleI.p.y;
+						const dy = particleJ.p.y - p_i.y;
 						if (dy > r || dy < -r) {
-							particleI.ij[j] = -1;
+							ij_i[j] = -1;
 							continue;
 						}
 						
 						const dv = new Vector(dx, dy);
 						let dv_length2 = dv.length2;
 						if (dv_length2 > r2) {
-							particleI.ij[j] = -1;
+							ij_i[j] = -1;
 							continue;
 						}
 
 						let spring: Spring | null = null;
 
 						const dv_length = Math.sqrt(dv_length2);
-						if ((!frozen && jelloState && (particleI.activeGroup || particleJ.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
-							((pt_statei === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
-							if (particleI.spring_ij[j]) {
-								spring = particleI.spring_ij[j];
+						if ((!frozen && jelloState && (activeGroup_i || particleJ.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
+							((pt_state_i === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
+							if (spring_ij_i[j]) {
+								spring = spring_ij_i[j];
 							} else if (pt_springs_i < max_springs) {
 								if (particleJ.pt_springs < max_springs) {
 									spring = spring_pool.next;
@@ -392,13 +401,13 @@ export class Jello implements IDrawable, IPower {
 										spring.i = i;
 										spring.j = j;
 										spring.l = dv_length;
-										particleI.spring_ij[j] = spring;
+										spring_ij_i[j] = spring;
 										spring_list.next = spring;
 										pt_springs_i++;
 										particleJ.pt_springs++;
 										particleJ.pt_state = 0;
-										pt_statei = 0;
-										if (particleI.activeGroup) {
+										pt_state_i = 0;
+										if (activeGroup_i) {
 											if (!particleJ.activeGroup) {
 												activeChanged = true;
 											}
@@ -413,7 +422,7 @@ export class Jello implements IDrawable, IPower {
 
 						if (spring) {
 							spring.d = dv_length;
-							if (pt_statei === 0) {
+							if (pt_state_i === 0) {
 								const q1 = spring.l;
 								let q2 = q1 * stretch_treshold;
 								let q3 = dv_length - q1;
@@ -430,11 +439,11 @@ export class Jello implements IDrawable, IPower {
 						}
 
 						if (dv_length <= 0.01) {
-							particleI.ij[j] = -1;
+							ij_i[j] = -1;
 							continue;
 						}
 
-						particleI.ns.push(j);
+						ns_i.push(j);
 
 						const q1 = 1 - dv_length * r_inv;
 
@@ -446,16 +455,16 @@ export class Jello implements IDrawable, IPower {
 						delta_ro_near_i += ro_near_ij;
 						particleJ.ro_near += ro_near_ij;
 
-						particleI.nsq1.push(q1);
-						particleI.nsq2.push(ro_ij);
+						nsq1_i.push(q1);
+						nsq2_i.push(ro_ij);
 						
 						const unit_direction = dv.mul(1 / dv_length);
 						if (spring) {											
 							spring.unit_direction = unit_direction;
 						}
-						particleI.nsd.push(unit_direction);
+						nsd_i.push(unit_direction);
 
-						const s3 = v.sub(particleJ.v).dot(unit_direction);
+						const s3 = v_i.sub(particleJ.v).dot(unit_direction);
 						if (s3 > 0) {
 							const s4 = (s3 > 100) ? 100 : s3
 							const delta_v_ij = unit_direction
@@ -463,14 +472,14 @@ export class Jello implements IDrawable, IPower {
 							delta_v_i = delta_v_i.sub(delta_v_ij);
 							particleJ.delta_v = particleJ.delta_v.add(delta_v_ij);
 						}
-						particleI.ij[j] = 1;
+						ij_i[j] = 1;
 					}
 					
 					particleI.ro += delta_ro_i;
 					particleI.ro_near += delta_ro_near_i;
 					particleI.delta_v = particleI.delta_v.add(delta_v_i);
 					particleI.pt_springs = pt_springs_i;
-					particleI.pt_state = pt_statei;
+					particleI.pt_state = pt_state_i;
 				}
 			})
 		);
