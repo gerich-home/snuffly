@@ -258,7 +258,7 @@ export class Jello implements IDrawable, IPower {
 			frozen,
 			jelloState,
 		} = this;
-		const sector_y = new Map<number, Map<number, number[]>>();
+		const rows = new Map<number, Map<number, number[]>>();
 
 		for (let i = 0; i < ptCount; i++) {
 			const particle = particles[i];
@@ -271,49 +271,49 @@ export class Jello implements IDrawable, IPower {
 			const q1 = Math.floor(pf.y);
 			const q2 = q1 + 1;
 
-			let z1 = sector_y.get(q1);
-			if (!z1) {
-				z1 = new Map<number, number[]>();
-				sector_y.set(q1, z1);
+			let row1 = rows.get(q1);
+			if (!row1) {
+				row1 = new Map<number, number[]>();
+				rows.set(q1, row1);
 			}
 			
-			let w11 = z1.get(s1);
-			if (!w11) {
-				w11 = [];
-				z1.set(s1, w11);
+			let cell11 = row1.get(s1);
+			if (!cell11) {
+				cell11 = [];
+				row1.set(s1, cell11);
 			}
 			
-			w11.push(i);
+			cell11.push(i);
 			
-			let w12 = z1.get(s2);
-			if (!w12) {
-				w12 = [];
-				z1.set(s2, w12);
+			let cell12 = row1.get(s2);
+			if (!cell12) {
+				cell12 = [];
+				row1.set(s2, cell12);
 			}
 			
-			w12.push(i);
+			cell12.push(i);
 			
-			let z2 = sector_y.get(q2);
-			if (!z2) {
-				z2 = new Map<number, number[]>();
-				sector_y.set(q2, z2);
+			let row2 = rows.get(q2);
+			if (!row2) {
+				row2 = new Map<number, number[]>();
+				rows.set(q2, row2);
 			}
 			
-			let w21 = z2.get(s1);
-			if (!w21) {
-				w21 = [];
-				z2.set(s1, w21);
+			let cell21 = row2.get(s1);
+			if (!cell21) {
+				cell21 = [];
+				row2.set(s1, cell21);
 			}
 			
-			w21.push(i);
+			cell21.push(i);
 			
-			let w22 = z2.get(s2);
-			if (!w22) {
-				w22 = [];
-				z2.set(s2, w22);
+			let cell22 = row2.get(s2);
+			if (!cell22) {
+				cell22 = [];
+				row2.set(s2, cell22);
 			}
 			
-			w22.push(i);
+			cell22.push(i);
 
 			particle.neighbors = [];
 
@@ -331,11 +331,11 @@ export class Jello implements IDrawable, IPower {
 		let activeChanged = false;
 
 		let spring: Spring | null = null;
-		sector_y.forEach(b =>
-			b.forEach(c => {
-				const cl = c.length;
+		rows.forEach(row =>
+			row.forEach(cell => {
+				const cl = cell.length;
 				for (let ci = 1; ci < cl; ci++) {
-					const i = c[ci];
+					const i = cell[ci];
 					const particleI = particles[i];
 					const v_i = particleI.v;
 					const ij_i = particleI.ij;
@@ -351,7 +351,7 @@ export class Jello implements IDrawable, IPower {
 					let pt_state_i = particleI.pt_state;
 
 					for (let cj = 0; cj < ci; cj++) {
-						const j = c[cj];
+						const j = cell[cj];
 						const particleJ = particles[j];
 						if (j in ij_i) {
 							continue;
