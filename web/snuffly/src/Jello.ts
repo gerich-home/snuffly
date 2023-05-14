@@ -108,9 +108,9 @@ export class Jello implements IDrawable, IPower {
 
 		this.particles = particles.map<Particle>((body, i) => ({
 			body,
-			ij: {},
+			ij: new Map<Particle, number>(),
 			neighbors: [],
-			spring_ij: this.createArrayOf(() => null, i),
+			spring_ij: new Map<Particle, Spring>(),
 			power: Vector.zero,
 			press: 0,
 			press_near: 0,
@@ -258,7 +258,7 @@ export class Jello implements IDrawable, IPower {
 			frozen,
 			jelloState,
 		} = this;
-		const rows = new Map<number, Map<number, number[]>>();
+		const rows = new Map<number, Map<number, Particle[]>>();
 
 		for (let i = 0; i < ptCount; i++) {
 			const particle = particles[i];
@@ -273,7 +273,7 @@ export class Jello implements IDrawable, IPower {
 
 			let row1 = rows.get(q1);
 			if (!row1) {
-				row1 = new Map<number, number[]>();
+				row1 = new Map<number, Particle[]>();
 				rows.set(q1, row1);
 			}
 			
@@ -283,7 +283,7 @@ export class Jello implements IDrawable, IPower {
 				row1.set(s1, cell11);
 			}
 			
-			cell11.push(i);
+			cell11.push(particle);
 			
 			let cell12 = row1.get(s2);
 			if (!cell12) {
@@ -291,11 +291,11 @@ export class Jello implements IDrawable, IPower {
 				row1.set(s2, cell12);
 			}
 			
-			cell12.push(i);
+			cell12.push(particle);
 			
 			let row2 = rows.get(q2);
 			if (!row2) {
-				row2 = new Map<number, number[]>();
+				row2 = new Map<number, Particle[]>();
 				rows.set(q2, row2);
 			}
 			
@@ -305,7 +305,7 @@ export class Jello implements IDrawable, IPower {
 				row2.set(s1, cell21);
 			}
 			
-			cell21.push(i);
+			cell21.push(particle);
 			
 			let cell22 = row2.get(s2);
 			if (!cell22) {
@@ -313,7 +313,7 @@ export class Jello implements IDrawable, IPower {
 				row2.set(s2, cell22);
 			}
 			
-			cell22.push(i);
+			cell22.push(particle);
 
 			particle.neighbors = [];
 
@@ -325,7 +325,7 @@ export class Jello implements IDrawable, IPower {
 			particle.v = Vector.fromB2D(particle.body.GetLinearVelocity());
 			particle.delta_v = Vector.zero;
 
-			particle.ij = {};
+			particle.ij = new Map<Particle, number>();
 		}
 
 		let activeChanged = false;
@@ -335,8 +335,7 @@ export class Jello implements IDrawable, IPower {
 			row.forEach(cell => {
 				const cl = cell.length;
 				for (let ci = 1; ci < cl; ci++) {
-					const i = cell[ci];
-					const particleI = particles[i];
+					const particleI = cell[ci];
 					const v_i = particleI.v;
 					const ij_i = particleI.ij;
 					const p_i = particleI.p;
@@ -351,46 +350,45 @@ export class Jello implements IDrawable, IPower {
 					let pt_state_i = particleI.pt_state;
 
 					for (let cj = 0; cj < ci; cj++) {
-						const j = cell[cj];
-						const particleJ = particles[j];
-						if (j in ij_i) {
+						const particleJ = cell[cj];
+						if (ij_i.has(particleJ)) {
 							continue;
 						}
 
 						const dx = particleJ.p.x - p_i.x;
 						if (dx > r || dx < -r) {
-							ij_i[j] = -1;
+							ij_i.set(particleJ, -1);
 							continue;
 						}
 						
 						const dy = particleJ.p.y - p_i.y;
 						if (dy > r || dy < -r) {
-							ij_i[j] = -1;
+							ij_i.set(particleJ, -1);
 							continue;
 						}
 						
 						const dv = new Vector(dx, dy);
 						let dv_length2 = dv.length2;
 						if (dv_length2 > r2) {
-							ij_i[j] = -1;
+							ij_i.set(particleJ, -1);
 							continue;
 						}
 
-						let spring: Spring | null = null;
+						let spring: Spring | null | undefined = null;
 
 						const dv_length = Math.sqrt(dv_length2);
 						if ((!frozen && jelloState && (activeGroup_i || particleJ.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
 							((pt_state_i === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
-							spring = spring_ij_i[j];
+							spring = spring_ij_i.get(particleJ);
 							if (!spring && (pt_springs_i < max_springs) && (particleJ.pt_springs < max_springs)) {
 								spring = spring_pool.next;
 								if (spring) {
 									spring_pool.next = spring.next;
 									spring.next = spring_list.next;
-									spring.i = i;
-									spring.j = j;
+									spring.i = particleI;
+									spring.j = particleJ;
 									spring.l = dv_length;
-									spring_ij_i[j] = spring;
+									spring_ij_i.set(particleJ, spring);
 									spring_list.next = spring;
 									pt_springs_i++;
 									particleJ.pt_springs++;
@@ -427,7 +425,7 @@ export class Jello implements IDrawable, IPower {
 						}
 
 						if (dv_length <= 0.01) {
-							ij_i[j] = -1;
+							ij_i.set(particleJ, -1);
 							continue;
 						}
 
@@ -461,7 +459,8 @@ export class Jello implements IDrawable, IPower {
 							delta_v_i = delta_v_i.sub(delta_v_ij);
 							particleJ.delta_v = particleJ.delta_v.add(delta_v_ij);
 						}
-						ij_i[j] = 1;
+
+						ij_i.set(particleJ, 1);
 					}
 					
 					particleI.ro += delta_ro_i;
@@ -476,14 +475,12 @@ export class Jello implements IDrawable, IPower {
 		spring = spring_list.next;
 		let prev = spring_list;
 		while (spring) {
-			const i = spring.i;
-			const j = spring.j;
-			const particleI = particles[i];
-			const particleJ = particles[j];
+			const particleI = spring.i!;
+			const particleJ = spring.j!;
 			let s1 = spring.l;
 			if (s1 > r) {
 				prev.next = spring.next;
-				particleI.spring_ij[j] = null;
+				particleI.spring_ij.delete(particleJ);
 				spring.next = spring_pool.next;
 				spring_pool.next = spring;
 				spring = prev.next;
@@ -503,7 +500,7 @@ export class Jello implements IDrawable, IPower {
 					if (particleI.pt_state === 1) {
 						if ((d > 4 * r) || ((d > 2 * r) && ((particleI.pt_springs < 5) || (particleJ.pt_springs < 5)))) {
 							prev.next = spring.next;
-							particleI.spring_ij[j] = null;
+							particleI.spring_ij.delete(particleJ);
 							spring.next = spring_pool.next;
 							spring_pool.next = spring;
 							spring = prev.next;
@@ -521,7 +518,7 @@ export class Jello implements IDrawable, IPower {
 						s1 = spring.l;
 						if (s1 > r) {
 							prev.next = spring.next;
-							particleI.spring_ij[j] = null;
+							particleI.spring_ij.delete(particleJ);
 							spring.next = spring_pool.next;
 							spring_pool.next = spring;
 							spring = prev.next;
@@ -572,7 +569,7 @@ export class Jello implements IDrawable, IPower {
 									groupend++;
 
 									for (let m = 0; m < i; m++) {
-										if (particles[i].spring_ij[m]) {
+										if (particles[i].spring_ij.has(particles[m])) {
 											if (groupid[m] === 0) {
 												groupid[m] = g;
 												group.push(m);
@@ -583,7 +580,7 @@ export class Jello implements IDrawable, IPower {
 									}
 									for (let m = i + 1; m < ptCount; m++) {
 										if (groupid[m] === 0) {
-											if (particles[m].spring_ij[i]) {
+											if (particles[m].spring_ij.has(particles[i])) {
 												groupid[m] = g;
 												group.push(m);
 												particles[grouphead].groupqueue = m;
@@ -688,8 +685,8 @@ export class Jello implements IDrawable, IPower {
 		let spring = this.spring_list.next;
 		while (spring) {
 			ctx.beginPath();
-			const p1 = this.particles[spring.i].body.GetPosition();
-			const p2 = this.particles[spring.j].body.GetPosition();
+			const p1 = spring.i!.body.GetPosition();
+			const p2 = spring.j!.body.GetPosition();
 			ctx.moveTo(p1.x, p1.y);
 			ctx.lineTo(p2.x, p2.y);
 			ctx.stroke();
@@ -755,14 +752,14 @@ export class Spring {
 	d: number = 0;
 	unit_direction: Vector = Vector.zero;
 	l: number;
-	i: number;
-	j: number;
+	i: Particle | null;
+	j: Particle | null;
 	next: Spring | null;
 
 	constructor(
 		next: Spring | null = null,
-		i: number = -1,
-		j: number = -1,
+		i: Particle | null = null,
+		j: Particle | null = null,
 		l: number = -1
 	) {
 		this.i = i;
