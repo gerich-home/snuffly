@@ -390,30 +390,27 @@ export class Jello implements IDrawable, IPower {
 						const dv_length = Math.sqrt(dv_length2);
 						if ((!frozen && jelloState && (activeGroup_i || particleJ.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
 							((pt_state_i === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
-							if (spring_ij_i[j]) {
-								spring = spring_ij_i[j];
-							} else if (pt_springs_i < max_springs) {
-								if (particleJ.pt_springs < max_springs) {
-									spring = spring_pool.next;
-									if (spring) {
-										spring_pool.next = spring.next;
-										spring.next = spring_list.next;
-										spring.i = i;
-										spring.j = j;
-										spring.l = dv_length;
-										spring_ij_i[j] = spring;
-										spring_list.next = spring;
-										pt_springs_i++;
-										particleJ.pt_springs++;
-										particleJ.pt_state = 0;
-										pt_state_i = 0;
-										if (activeGroup_i) {
-											if (!particleJ.activeGroup) {
-												activeChanged = true;
-											}
-										} else if (particleJ.activeGroup) {
+							spring = spring_ij_i[j];
+							if (!spring && (pt_springs_i < max_springs) && (particleJ.pt_springs < max_springs)) {
+								spring = spring_pool.next;
+								if (spring) {
+									spring_pool.next = spring.next;
+									spring.next = spring_list.next;
+									spring.i = i;
+									spring.j = j;
+									spring.l = dv_length;
+									spring_ij_i[j] = spring;
+									spring_list.next = spring;
+									pt_springs_i++;
+									particleJ.pt_springs++;
+									particleJ.pt_state = 0;
+									pt_state_i = 0;
+									if (activeGroup_i) {
+										if (!particleJ.activeGroup) {
 											activeChanged = true;
 										}
+									} else if (particleJ.activeGroup) {
+										activeChanged = true;
 									}
 								}
 							}
