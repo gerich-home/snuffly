@@ -343,11 +343,11 @@ export class Jello implements IDrawable, IPower {
 				for (let ci = 1; ci < cl; ci++) {
 					const i = c[ci];
 					const particleI = particles[i];
-					let s4 = particleI.ro;
-					let s5 = particleI.ro_near;
+					let delta_ro_i = 0;
+					let delta_ro_near_i = 0;
 					const v = particleI.v;
-					let delta_v = particleI.delta_v;
-					let z = particleI.pt_springs;
+					let delta_v_i = Vector.zero;
+					let pt_springs_i = particleI.pt_springs;
 					let pt_statei = particleI.pt_state;
 
 					for (let cj = 0; cj < ci; cj++) {
@@ -376,7 +376,7 @@ export class Jello implements IDrawable, IPower {
 							((pt_statei === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
 							if (particleI.spring_ij[j]) {
 								spring = particleI.spring_ij[j];
-							} else if (z < max_springs) {
+							} else if (pt_springs_i < max_springs) {
 								if (particleJ.pt_springs < max_springs) {
 									spring = spring_pool.next;
 									if (spring) {
@@ -387,7 +387,7 @@ export class Jello implements IDrawable, IPower {
 										spring.l = d;
 										particleI.spring_ij[j] = spring;
 										spring_list.next = spring;
-										z++;
+										pt_springs_i++;
 										particleJ.pt_springs++;
 										particleJ.pt_state = 0;
 										pt_statei = 0;
@@ -430,14 +430,17 @@ export class Jello implements IDrawable, IPower {
 						particleI.ns.push(j);
 
 						const q1 = 1 - d * rinv;
-						const q2 = q1 * q1;
-						const q3 = q2 * q1;
-						s4 += q2;
-						s5 += q3;
-						particleJ.ro += q2;
-						particleJ.ro_near += q3;
+
+						const ro_ij = q1 * q1;
+						delta_ro_i += ro_ij;
+						particleJ.ro += ro_ij;
+
+						const ro_near_ij = ro_ij * q1;
+						delta_ro_near_i += ro_near_ij;
+						particleJ.ro_near += ro_near_ij;
+
 						particleI.nsq1.push(q1);
-						particleI.nsq2.push(q2);
+						particleI.nsq2.push(ro_ij);
 						
 						dv = dv.mul(1 / d);
 						if (spring) {											
@@ -450,16 +453,16 @@ export class Jello implements IDrawable, IPower {
 							const s4 = (s3 > 100) ? 100 : s3
 							const s1 = q1 * (viscosity_a + viscosity_b * s4) * s4;
 							dv = dv.mul(s1);
-							delta_v = delta_v.sub(dv);
+							delta_v_i = delta_v_i.sub(dv);
 							particleJ.delta_v = particleJ.delta_v.add(dv);
 						}
 						particleI.ij[j] = 1;
 					}
 					
-					particleI.ro = s4;
-					particleI.ro_near = s5;
-					particleI.pt_springs = z;
-					particleI.delta_v = delta_v;
+					particleI.ro += delta_ro_i;
+					particleI.ro_near += delta_ro_near_i;
+					particleI.delta_v = particleI.delta_v.add(delta_v_i);
+					particleI.pt_springs = pt_springs_i;
 					particleI.pt_state = pt_statei;
 				}
 			})
