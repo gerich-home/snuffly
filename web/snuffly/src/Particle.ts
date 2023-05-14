@@ -72,10 +72,12 @@ export type Particle = {
 
 
 	//Соседи i-ой частицы 
-	ns: number[]; //Индексы соседей частицы
-	nsq1: number[]; //q1
-	nsq2: number[]; //q2      - для SPH модели
-	nsd: Vector[]; //вектор между точками частицами i и j
+	neighbors: {
+		particle: Particle,
+		q1: number; // для SPH модели
+		q2: number; // для SPH модели
+		unit_direction: Vector; // вектор между частицами
+	}[];
 
 	//Параметры каждой частицы
 	ro: number; //Дальняя плотность

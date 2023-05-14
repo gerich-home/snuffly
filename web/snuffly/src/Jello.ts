@@ -109,10 +109,7 @@ export class Jello implements IDrawable, IPower {
 		this.particles = particles.map<Particle>((body, i) => ({
 			body,
 			ij: {},
-			ns: [],
-			nsd: [],
-			nsq1: [],
-			nsq2: [],
+			neighbors: [],
 			spring_ij: this.createArrayOf(() => null, i),
 			power: Vector.zero,
 			press: 0,
@@ -269,10 +266,10 @@ export class Jello implements IDrawable, IPower {
 
 			const pf = vec1.mul(r_inv_half);
 
-			const s1 = Math.floor(pf.x - 0.5);
-			const s2 = Math.floor(pf.x + 0.5);
-			const q1 = Math.floor(pf.y - 0.5);
-			const q2 = Math.floor(pf.y + 0.5);
+			const s1 = Math.floor(pf.x);
+			const s2 = s1 + 1;
+			const q1 = Math.floor(pf.y);
+			const q2 = q1 + 1;
 
 			let z1 = sector_y.get(q1);
 			if (!z1) {
@@ -318,10 +315,7 @@ export class Jello implements IDrawable, IPower {
 			
 			w22.push(i);
 
-			particle.ns = [];
-			particle.nsq1 = [];
-			particle.nsq2 = [];
-			particle.nsd = [];
+			particle.neighbors = [];
 
 			particle.ro = 0;
 			particle.ro_near = 0;
@@ -348,10 +342,7 @@ export class Jello implements IDrawable, IPower {
 					const p_i = particleI.p;
 					const spring_ij_i = particleI.spring_ij;
 					const activeGroup_i = particleI.activeGroup;
-					const ns_i = particleI.ns;
-					const nsq1_i = particleI.nsq1;
-					const nsq2_i = particleI.nsq2;
-					const nsd_i = particleI.nsd;
+					const neighbors_i = particleI.neighbors;
 					
 					let delta_ro_i = 0;
 					let delta_ro_near_i = 0;
@@ -440,8 +431,6 @@ export class Jello implements IDrawable, IPower {
 							continue;
 						}
 
-						ns_i.push(j);
-
 						const q1 = 1 - dv_length * r_inv;
 
 						const ro_ij = q1 * q1;
@@ -452,14 +441,17 @@ export class Jello implements IDrawable, IPower {
 						delta_ro_near_i += ro_near_ij;
 						particleJ.ro_near += ro_near_ij;
 
-						nsq1_i.push(q1);
-						nsq2_i.push(ro_ij);
-						
 						const unit_direction = dv.mul(1 / dv_length);
 						if (spring) {											
 							spring.unit_direction = unit_direction;
 						}
-						nsd_i.push(unit_direction);
+
+						neighbors_i.push({
+							particle: particleJ,
+							q1,
+							q2: ro_ij,
+							unit_direction: unit_direction,
+						});
 
 						const s3 = v_i.sub(particleJ.v).dot(unit_direction);
 						if (s3 > 0) {
@@ -641,21 +633,26 @@ export class Jello implements IDrawable, IPower {
 		}
 
 		for (const particle of particles) {
-			let dv = Vector.zero;
+			let delta_power_i = Vector.zero;
+			const press_i = particle.press;
+			const press_near_i = particle.press_near;
 
-			for (let j = 0; j < particle.ns.length; j++) {
-				const particleZ = particles[particle.ns[j]];
+			for (const neighbor of particle.neighbors) {
+				const particleJ = neighbor.particle;
+				const unit_direction = neighbor.unit_direction;
+				const press_j = particleJ.press;
+				const press_near_j = particleJ.press_near;
 
-				const dn = (particle.press + particleZ.press) * particle.nsq1[j] +
-					(particle.press_near + particleZ.press_near) * particle.nsq2[j];
+				const dn = (press_i + press_j) * neighbor.q1 +
+					(press_near_i + press_near_j) * neighbor.q2;
 
-				const q = particle.nsd[j].mul(dn);
+				const delta_power_ij = unit_direction.mul(dn);
 
-				dv = dv.add(q);
-				particleZ.power = particleZ.power.add(q);
+				delta_power_i = delta_power_i.add(delta_power_ij);
+				particleJ.power = particleJ.power.add(delta_power_ij);
 			}
 
-			particle.power = particle.power.sub(dv);
+			particle.power = particle.power.sub(delta_power_i);
 		}
 
 		for (const particle of particles) {
