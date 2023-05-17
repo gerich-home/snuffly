@@ -116,11 +116,11 @@ export class Jello implements IDrawable, IPower {
 			press_near: 0,
 			pt_springs: 0,
 			pt_state: 0,
-			p: Vector.zero,
+			position: Vector.zero,
 			ro: 0,
 			ro_near: 0,
-			v: Vector.zero,
-			delta_v: Vector.zero,
+			velocity: Vector.zero,
+			delta_velocity: Vector.zero,
 			activeGroup: false,
 			groupqueue: 0,
 		}));
@@ -258,13 +258,26 @@ export class Jello implements IDrawable, IPower {
 			frozen,
 			jelloState,
 		} = this;
+
 		const rows = new Map<number, Map<number, Particle[]>>();
 
-		for (let i = 0; i < ptCount; i++) {
-			const particle = particles[i];
-			const vec1 = Vector.fromB2D(particle.body.GetPosition());
+		for (let particle of particles) {
+			const position = Vector.fromB2D(particle.body.GetPosition());
 
-			const pf = vec1.mul(r_inv_half);
+			particle.position = position;
+			particle.velocity = Vector.fromB2D(particle.body.GetLinearVelocity());
+			
+			particle.ij = new Map<Particle, number>();
+			particle.neighbors = [];
+
+			particle.ro = 0;
+			particle.ro_near = 0;
+			particle.power = Vector.zero;
+			particle.delta_velocity = Vector.zero;
+		}
+
+		for (let particle of particles) {
+			const pf = particle.position.mul(r_inv_half);
 
 			const s1 = Math.floor(pf.x);
 			const s2 = s1 + 1;
@@ -314,18 +327,6 @@ export class Jello implements IDrawable, IPower {
 			}
 			
 			cell22.push(particle);
-
-			particle.neighbors = [];
-
-			particle.ro = 0;
-			particle.ro_near = 0;
-			particle.power = Vector.zero;
-			particle.p = vec1;
-
-			particle.v = Vector.fromB2D(particle.body.GetLinearVelocity());
-			particle.delta_v = Vector.zero;
-
-			particle.ij = new Map<Particle, number>();
 		}
 
 		let activeChanged = false;
@@ -335,70 +336,71 @@ export class Jello implements IDrawable, IPower {
 			row.forEach(cell => {
 				const cl = cell.length;
 				for (let ci = 1; ci < cl; ci++) {
-					const particleI = cell[ci];
-					const v_i = particleI.v;
-					const ij_i = particleI.ij;
-					const p_i = particleI.p;
-					const spring_ij_i = particleI.spring_ij;
-					const activeGroup_i = particleI.activeGroup;
-					const neighbors_i = particleI.neighbors;
+					const particle_i = cell[ci];
+					const velocity_i = particle_i.velocity;
+					const position_i = particle_i.position;
+
+					const ij_i = particle_i.ij;
+					const spring_ij_i = particle_i.spring_ij;
+					const neighbors_i = particle_i.neighbors;
+					const activeGroup_i = particle_i.activeGroup;
 					
 					let delta_ro_i = 0;
 					let delta_ro_near_i = 0;
-					let delta_v_i = Vector.zero;
-					let pt_springs_i = particleI.pt_springs;
-					let pt_state_i = particleI.pt_state;
+					let delta_velocity_i = Vector.zero;
+					let pt_springs_i = particle_i.pt_springs;
+					let pt_state_i = particle_i.pt_state;
 
 					for (let cj = 0; cj < ci; cj++) {
-						const particleJ = cell[cj];
-						if (ij_i.has(particleJ)) {
+						const particle_j = cell[cj];
+						if (ij_i.has(particle_j)) {
 							continue;
 						}
 
-						const dx = particleJ.p.x - p_i.x;
+						const dx = particle_j.position.x - position_i.x;
 						if (dx > r || dx < -r) {
-							ij_i.set(particleJ, -1);
+							ij_i.set(particle_j, -1);
 							continue;
 						}
 						
-						const dy = particleJ.p.y - p_i.y;
+						const dy = particle_j.position.y - position_i.y;
 						if (dy > r || dy < -r) {
-							ij_i.set(particleJ, -1);
+							ij_i.set(particle_j, -1);
 							continue;
 						}
 						
-						const dv = new Vector(dx, dy);
-						let dv_length2 = dv.length2;
-						if (dv_length2 > r2) {
-							ij_i.set(particleJ, -1);
+						const direction_to_j = new Vector(dx, dy);
+						let distance_between_particles_squared = direction_to_j.length2;
+						if (distance_between_particles_squared > r2) {
+							ij_i.set(particle_j, -1);
 							continue;
 						}
 
 						let spring: Spring | null | undefined = null;
 
-						const dv_length = Math.sqrt(dv_length2);
-						if ((!frozen && jelloState && (activeGroup_i || particleJ.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
-							((pt_state_i === 0) && (particleJ.pt_state === 0))) {					//слипание двух неактивных желе
-							spring = spring_ij_i.get(particleJ);
-							if (!spring && (pt_springs_i < max_springs) && (particleJ.pt_springs < max_springs)) {
+						const distance_between_particles = Math.sqrt(distance_between_particles_squared);
+						if ((!frozen && jelloState && (activeGroup_i || particle_j.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
+							((pt_state_i === 0) && (particle_j.pt_state === 0))) {					//слипание двух неактивных желе
+							spring = spring_ij_i.get(particle_j);
+							if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
 								spring = spring_pool.next;
 								if (spring) {
 									spring_pool.next = spring.next;
 									spring.next = spring_list.next;
-									spring.i = particleI;
-									spring.j = particleJ;
-									spring.l = dv_length;
-									spring_ij_i.set(particleJ, spring);
+									spring.i = particle_i;
+									spring.j = particle_j;
+									spring.rest_length = distance_between_particles;
+									spring_ij_i.set(particle_j, spring);
 									spring_list.next = spring;
 									pt_springs_i++;
-									particleJ.pt_springs++;
-									particleJ.pt_state = 0;
+									particle_j.pt_springs++;
+									particle_j.pt_state = 0;
 									pt_state_i = 0;
 									if (activeGroup_i) {
-										if (!particleJ.activeGroup) {
+										if (!particle_j.activeGroup) {
 											activeChanged = true;
 										}
-									} else if (particleJ.activeGroup) {
+									} else if (particle_j.activeGroup) {
 										activeChanged = true;
 									}
 								}
@@ -407,67 +409,67 @@ export class Jello implements IDrawable, IPower {
 
 
 						if (spring) {
-							spring.d = dv_length;
+							spring.current_length = distance_between_particles;
 							if (pt_state_i === 0) {
-								const q1 = spring.l;
-								let q2 = q1 * stretch_treshold;
-								let q3 = dv_length - q1;
+								const spring_length = spring.rest_length;
+								let q2 = spring_length * stretch_treshold;
+								let q3 = distance_between_particles - spring_length;
 								if (q3 > q2) {
-									spring.l += q1 * r_inv * stretch_speed * (q3 - q2);
+									spring.rest_length += spring_length * r_inv * stretch_speed * (q3 - q2);
 								} else {
-									q2 = q1 * compress_treshold;
-									q3 = dv_length - q1;
-									if (q3 < -q2) {
-										spring.l += q1 * r_inv * compress_speed * (q3 + q2);
+									q2 = -spring_length * compress_treshold;
+									q3 = distance_between_particles - spring_length;
+									if (q3 < q2) {
+										spring.rest_length += spring_length * r_inv * compress_speed * (q3 - q2);
 									}
 								}
 							}
 						}
 
-						if (dv_length <= 0.01) {
-							ij_i.set(particleJ, -1);
+						if (distance_between_particles <= 0.01) {
+							ij_i.set(particle_j, -1);
 							continue;
 						}
 
-						const q1 = 1 - dv_length * r_inv;
+						const q1 = 1 - distance_between_particles * r_inv;
 
 						const ro_ij = q1 * q1;
 						delta_ro_i += ro_ij;
-						particleJ.ro += ro_ij;
+						particle_j.ro += ro_ij;
 
 						const ro_near_ij = ro_ij * q1;
 						delta_ro_near_i += ro_near_ij;
-						particleJ.ro_near += ro_near_ij;
+						particle_j.ro_near += ro_near_ij;
 
-						const unit_direction = dv.mul(1 / dv_length);
+						const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
 						if (spring) {											
-							spring.unit_direction = unit_direction;
+							spring.unit_direction_to_j = unit_direction_to_j;
 						}
 
 						neighbors_i.push({
-							particle: particleJ,
+							particle: particle_j,
 							q1,
 							q2: ro_ij,
-							unit_direction: unit_direction,
+							unit_direction: unit_direction_to_j,
 						});
 
-						const s3 = v_i.sub(particleJ.v).dot(unit_direction);
-						if (s3 > 0) {
-							const s4 = (s3 > 100) ? 100 : s3
-							const delta_v_ij = unit_direction
-								.mul(q1 * (viscosity_a + viscosity_b * s4) * s4);
-							delta_v_i = delta_v_i.sub(delta_v_ij);
-							particleJ.delta_v = particleJ.delta_v.add(delta_v_ij);
+						const collision_velocity = velocity_i.sub(particle_j.velocity).dot(unit_direction_to_j);
+						if (collision_velocity > 0) {
+							const collision_velocity_clamped = (collision_velocity > 100) ? 100 : collision_velocity;
+							const delta_velocity_ij = unit_direction_to_j
+								.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
+							delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
+							particle_j.delta_velocity = particle_j.delta_velocity.add(delta_velocity_ij);
 						}
 
-						ij_i.set(particleJ, 1);
+						ij_i.set(particle_j, 1);
 					}
 					
-					particleI.ro += delta_ro_i;
-					particleI.ro_near += delta_ro_near_i;
-					particleI.delta_v = particleI.delta_v.add(delta_v_i);
-					particleI.pt_springs = pt_springs_i;
-					particleI.pt_state = pt_state_i;
+					particle_i.ro += delta_ro_i;
+					particle_i.ro_near += delta_ro_near_i;
+					particle_i.delta_velocity = particle_i.delta_velocity.add(delta_velocity_i);
+					particle_i.pt_springs = pt_springs_i;
+					particle_i.pt_state = pt_state_i;
 				}
 			})
 		);
@@ -475,73 +477,73 @@ export class Jello implements IDrawable, IPower {
 		spring = spring_list.next;
 		let prev = spring_list;
 		while (spring) {
-			const particleI = spring.i!;
-			const particleJ = spring.j!;
-			let s1 = spring.l;
+			const particle_i = spring.i!;
+			const particle_j = spring.j!;
+			let s1 = spring.rest_length;
 			if (s1 > r) {
 				prev.next = spring.next;
-				particleI.spring_ij.delete(particleJ);
+				particle_i.spring_ij.delete(particle_j);
 				spring.next = spring_pool.next;
 				spring_pool.next = spring;
 				spring = prev.next;
-				particleI.pt_springs--;
-				particleJ.pt_springs--;
-				activeChanged ||= particleI.activeGroup || particleJ.activeGroup;
+				particle_i.pt_springs--;
+				particle_j.pt_springs--;
+				activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
 				continue;
 			} else {
-				let d = spring.d;
+				let d = spring.current_length;
 				let dv: Vector;
 				if (d < 0) {
-					dv = particleJ.p.sub(particleI.p);
+					dv = particle_j.position.sub(particle_i.position);
 					d = dv.length;
 					if (d > 0.01) {
 						dv = dv.mul(1 / d);
 					}
-					if (particleI.pt_state === 1) {
-						if ((d > 4 * r) || ((d > 2 * r) && ((particleI.pt_springs < 5) || (particleJ.pt_springs < 5)))) {
+					if (particle_i.pt_state === 1) {
+						if ((d > 4 * r) || ((d > 2 * r) && ((particle_i.pt_springs < 5) || (particle_j.pt_springs < 5)))) {
 							prev.next = spring.next;
-							particleI.spring_ij.delete(particleJ);
+							particle_i.spring_ij.delete(particle_j);
 							spring.next = spring_pool.next;
 							spring_pool.next = spring;
 							spring = prev.next;
-							particleI.pt_springs--;
-							particleJ.pt_springs--;
-							activeChanged ||= particleI.activeGroup || particleJ.activeGroup;
+							particle_i.pt_springs--;
+							particle_j.pt_springs--;
+							activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
 							continue;
 						}
 					} else {
 						const s2 = s1 * stretch_treshold;
 						const s3 = d - s1;
 						if (s3 > s2) {
-							spring.l += s1 * r_inv * stretch_speed * (s3 - s2);
+							spring.rest_length += s1 * r_inv * stretch_speed * (s3 - s2);
 						}
-						s1 = spring.l;
+						s1 = spring.rest_length;
 						if (s1 > r) {
 							prev.next = spring.next;
-							particleI.spring_ij.delete(particleJ);
+							particle_i.spring_ij.delete(particle_j);
 							spring.next = spring_pool.next;
 							spring_pool.next = spring;
 							spring = prev.next;
-							particleI.pt_springs--;
-							particleJ.pt_springs--;
-							activeChanged ||= particleI.activeGroup || particleJ.activeGroup;
+							particle_i.pt_springs--;
+							particle_j.pt_springs--;
+							activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
 							continue;
 						}
 					}
 				} else {
-					dv = spring.unit_direction;
-					spring.d = -1;
+					dv = spring.unit_direction_to_j;
+					spring.current_length = -1;
 				}
 				if (d > 0.01) {
 					let q1: number;
-					if (particleI.pt_state === 1) {
+					if (particle_i.pt_state === 1) {
 						q1 = k_spring * (s1 - d);// *(1-s1*rinv)
 					} else {
 						q1 = 2 * k_spring * (s1 - d);
 					}
 					dv = dv.mul(q1);
-					particleJ.power = particleJ.power.add(dv);
-					particleI.power = particleI.power.sub(dv);
+					particle_j.power = particle_j.power.add(dv);
+					particle_i.power = particle_i.power.sub(dv);
 				}
 			}
 			prev = spring;
@@ -667,7 +669,7 @@ export class Jello implements IDrawable, IPower {
 					});
 			}
 
-			particle.v.add(particle.delta_v)
+			particle.velocity.add(particle.delta_velocity)
 				.asB2D(Box2D, v => {
 					particle.body.SetLinearVelocity(v);
 				});
@@ -749,9 +751,9 @@ export class Jello implements IDrawable, IPower {
 
 //Пластичная связь
 export class Spring {
-	d: number = 0;
-	unit_direction: Vector = Vector.zero;
-	l: number;
+	current_length: number = 0;
+	unit_direction_to_j: Vector = Vector.zero;
+	rest_length: number;
 	i: Particle | null;
 	j: Particle | null;
 	next: Spring | null;
@@ -765,7 +767,7 @@ export class Spring {
 		this.i = i;
 		this.j = j;
 		this.next = next;
-		this.l = l;
+		this.rest_length = l;
 	}
 }
 

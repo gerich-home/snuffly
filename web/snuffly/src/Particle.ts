@@ -83,9 +83,9 @@ export type Particle = {
 	press: number; //Дальнее давление
 	press_near: number; //Ближнее давление
 	power: Vector; //Суммарные силы от связей и давления
-	p: Vector; //Координаты
-	v: Vector; //Скорость
-	delta_v: Vector; //Изменение скорости
+	position: Vector; //Координаты
+	velocity: Vector; //Скорость
+	delta_velocity: Vector; //Изменение скорости
 	pt_springs: number; //Число связей у частицы
 	pt_state: number; //Состояние частицы(0-липкая, 1-упругая, 2-жидкая)
 
