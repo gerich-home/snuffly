@@ -404,6 +404,32 @@ export class Jello implements IDrawable, IPower {
 			particle_i.delta_velocity = particle_i.delta_velocity.add(delta_velocity_i);
 		}
 
+		for (const particle_i of particles) {
+			const neighbors_i = particle_i.neighbors;
+			
+			let delta_ro_i = 0;
+			let delta_ro_near_i = 0;
+
+			for (const neighbor of neighbors_i) {
+				const {
+					particle: particle_j,
+					q1,
+					q2
+				} = neighbor;
+
+				const ro_ij = q2;
+				delta_ro_i += ro_ij;
+				particle_j.ro += ro_ij;
+
+				const ro_near_ij = q2 * q1;
+				delta_ro_near_i += ro_near_ij;
+				particle_j.ro_near += ro_near_ij;
+			}
+
+			particle_i.ro += delta_ro_i;
+			particle_i.ro_near += delta_ro_near_i;
+		}
+
 		let activeChanged = false;
 		let spring: Spring | null = null;
 		for (const particle_i of particles) {
@@ -411,8 +437,6 @@ export class Jello implements IDrawable, IPower {
 			const neighbors_i = particle_i.neighbors;
 			const activeGroup_i = particle_i.activeGroup;
 
-			let delta_ro_i = 0;
-			let delta_ro_near_i = 0;
 			let pt_springs_i = particle_i.pt_springs;
 			let pt_state_i = particle_i.pt_state;
 
@@ -421,8 +445,6 @@ export class Jello implements IDrawable, IPower {
 					particle: particle_j,
 					distance_between_particles,
 					unit_direction,
-					q1,
-					q2
 				} = neighbor;
 
 				let spring: Spring | null | undefined = null;
@@ -473,21 +495,11 @@ export class Jello implements IDrawable, IPower {
 					}
 				}
 
-				const ro_ij = q2;
-				delta_ro_i += ro_ij;
-				particle_j.ro += ro_ij;
-
-				const ro_near_ij = q2 * q1;
-				delta_ro_near_i += ro_near_ij;
-				particle_j.ro_near += ro_near_ij;
-
 				if (spring) {
 					spring.unit_direction_to_j = unit_direction;
 				}
 			}
 
-			particle_i.ro += delta_ro_i;
-			particle_i.ro_near += delta_ro_near_i;
 			particle_i.pt_springs = pt_springs_i;
 			particle_i.pt_state = pt_state_i;
 		}
