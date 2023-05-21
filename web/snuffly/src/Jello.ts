@@ -407,7 +407,6 @@ export class Jello implements IDrawable, IPower {
 		let activeChanged = false;
 		let spring: Spring | null = null;
 		for (const particle_i of particles) {
-			const velocity_i = particle_i.velocity;
 			const spring_ij_i = particle_i.spring_ij;
 			const neighbors_i = particle_i.neighbors;
 			const activeGroup_i = particle_i.activeGroup;
