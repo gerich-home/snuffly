@@ -362,9 +362,14 @@ export class Jello implements IDrawable, IPower {
 							continue;
 						}
 
+						const distance_between_particles = Math.sqrt(distance_between_particles_squared);
+						if (distance_between_particles <= 0.01) {
+							ij_i.set(particle_j, -1);
+							continue;
+						}
+
 						let spring: Spring | null | undefined = null;
 
-						const distance_between_particles = Math.sqrt(distance_between_particles_squared);
 						if ((!frozen && jelloState && (activeGroup_i || particle_j.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
 							((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
 							spring = spring_ij_i.get(particle_j);
@@ -409,11 +414,6 @@ export class Jello implements IDrawable, IPower {
 									}
 								}
 							}
-						}
-
-						if (distance_between_particles <= 0.01) {
-							ij_i.set(particle_j, -1);
-							continue;
 						}
 
 						const q1 = 1 - distance_between_particles * r_inv;
