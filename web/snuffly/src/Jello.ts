@@ -314,28 +314,15 @@ export class Jello implements IDrawable, IPower {
 			addToRow(q1 + 1);
 			addToRow(q1 + 2);
 		}
-
-		let activeChanged = false;
-
-		let spring: Spring | null = null;
 		rows.forEach(row =>
 			row.forEach(cell => {
 				const cl = cell.length;
 				for (let ci = 1; ci < cl; ci++) {
 					const particle_i = cell[ci];
-					const velocity_i = particle_i.velocity;
 					const position_i = particle_i.position;
 
 					const ij_i = particle_i.ij;
-					const spring_ij_i = particle_i.spring_ij;
 					const neighbors_i = particle_i.neighbors;
-					const activeGroup_i = particle_i.activeGroup;
-					
-					let delta_ro_i = 0;
-					let delta_ro_near_i = 0;
-					let delta_velocity_i = Vector.zero;
-					let pt_springs_i = particle_i.pt_springs;
-					let pt_state_i = particle_i.pt_state;
 
 					for (let cj = 0; cj < ci; cj++) {
 						const particle_j = cell[cj];
@@ -343,20 +330,22 @@ export class Jello implements IDrawable, IPower {
 							continue;
 						}
 
-						const dx = particle_j.position.x - position_i.x;
+						const position_j = particle_j.position;
+						const dx = position_j.x - position_i.x;
 						if (dx > r || dx < -r) {
 							ij_i.set(particle_j, -1);
 							continue;
 						}
 						
-						const dy = particle_j.position.y - position_i.y;
+						const dy = position_j.y - position_i.y;
 						if (dy > r || dy < -r) {
 							ij_i.set(particle_j, -1);
 							continue;
 						}
 						
 						const direction_to_j = new Vector(dx, dy);
-						let distance_between_particles_squared = direction_to_j.length2;
+
+						const distance_between_particles_squared = direction_to_j.length2;
 						if (distance_between_particles_squared > r2) {
 							ij_i.set(particle_j, -1);
 							continue;
@@ -368,98 +357,128 @@ export class Jello implements IDrawable, IPower {
 							continue;
 						}
 
-						let spring: Spring | null | undefined = null;
-
-						if ((!frozen && jelloState && (activeGroup_i || particle_j.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
-							((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
-							spring = spring_ij_i.get(particle_j);
-							if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
-								spring = spring_pool.next;
-								if (spring) {
-									spring_pool.next = spring.next;
-									spring.next = spring_list.next;
-									spring.i = particle_i;
-									spring.j = particle_j;
-									spring.rest_length = distance_between_particles;
-									spring_ij_i.set(particle_j, spring);
-									spring_list.next = spring;
-									pt_springs_i++;
-									particle_j.pt_springs++;
-									particle_j.pt_state = Sticky;
-									pt_state_i = Sticky;
-									if (activeGroup_i) {
-										if (!particle_j.activeGroup) {
-											activeChanged = true;
-										}
-									} else if (particle_j.activeGroup) {
-										activeChanged = true;
-									}
-								}
-							}
-						}
-
-
-						if (spring) {
-							spring.current_length = distance_between_particles;
-							if (pt_state_i === Sticky) {
-								const spring_length = spring.rest_length;
-								const distance_from_rest = distance_between_particles - spring_length;
-								const current_stretch_treshold = spring_length * stretch_treshold;
-								if (distance_from_rest > current_stretch_treshold) {
-									spring.rest_length += spring_length * r_inv * stretch_speed * (distance_from_rest - current_stretch_treshold);
-								} else {
-									const current_compress_treshold = -spring_length * compress_treshold;
-									if (distance_from_rest < current_compress_treshold) {
-										spring.rest_length += spring_length * r_inv * compress_speed * (distance_from_rest - current_compress_treshold);
-									}
-								}
-							}
-						}
-
-						const q1 = 1 - distance_between_particles * r_inv;
-
-						const ro_ij = q1 * q1;
-						delta_ro_i += ro_ij;
-						particle_j.ro += ro_ij;
-
-						const ro_near_ij = ro_ij * q1;
-						delta_ro_near_i += ro_near_ij;
-						particle_j.ro_near += ro_near_ij;
-
 						const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
-						if (spring) {											
-							spring.unit_direction_to_j = unit_direction_to_j;
-						}
 
 						neighbors_i.push({
 							particle: particle_j,
-							q1,
-							q2: ro_ij,
+							distance_between_particles,
 							unit_direction: unit_direction_to_j,
+							q1: 0,
+							q2: 0,
 						});
-
-						const collision_velocity = velocity_i.sub(particle_j.velocity).dot(unit_direction_to_j);
-						if (collision_velocity > 0) {
-							// TODO: do we really need clamping
-							const max_collision_velocity = 100;
-							const collision_velocity_clamped = (collision_velocity > max_collision_velocity) ? max_collision_velocity : collision_velocity;
-							const delta_velocity_ij = unit_direction_to_j
-								.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
-							delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
-							particle_j.delta_velocity = particle_j.delta_velocity.add(delta_velocity_ij);
-						}
 
 						ij_i.set(particle_j, 1);
 					}
-					
-					particle_i.ro += delta_ro_i;
-					particle_i.ro_near += delta_ro_near_i;
-					particle_i.delta_velocity = particle_i.delta_velocity.add(delta_velocity_i);
-					particle_i.pt_springs = pt_springs_i;
-					particle_i.pt_state = pt_state_i;
 				}
 			})
 		);
+
+		let activeChanged = false;
+
+		let spring: Spring | null = null;
+		for(const particle_i of particles) {
+			const velocity_i = particle_i.velocity;
+			const spring_ij_i = particle_i.spring_ij;
+			const neighbors_i = particle_i.neighbors;
+			const activeGroup_i = particle_i.activeGroup;
+			
+			let delta_ro_i = 0;
+			let delta_ro_near_i = 0;
+			let delta_velocity_i = Vector.zero;
+			let pt_springs_i = particle_i.pt_springs;
+			let pt_state_i = particle_i.pt_state;
+
+			for (const neighbor of neighbors_i) {
+				const {
+					particle: particle_j,
+					distance_between_particles,
+					unit_direction,
+				} = neighbor;
+
+
+				let spring: Spring | null | undefined = null;
+
+				if ((!frozen && jelloState && (activeGroup_i || particle_j.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
+					((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
+					spring = spring_ij_i.get(particle_j);
+					if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
+						spring = spring_pool.next;
+						if (spring) {
+							spring_pool.next = spring.next;
+							spring.next = spring_list.next;
+							spring.i = particle_i;
+							spring.j = particle_j;
+							spring.rest_length = distance_between_particles;
+							spring_ij_i.set(particle_j, spring);
+							spring_list.next = spring;
+							pt_springs_i++;
+							particle_j.pt_springs++;
+							particle_j.pt_state = Sticky;
+							pt_state_i = Sticky;
+							if (activeGroup_i) {
+								if (!particle_j.activeGroup) {
+									activeChanged = true;
+								}
+							} else if (particle_j.activeGroup) {
+								activeChanged = true;
+							}
+						}
+					}
+				}
+
+
+				if (spring) {
+					spring.current_length = distance_between_particles;
+					if (pt_state_i === Sticky) {
+						const spring_length = spring.rest_length;
+						const distance_from_rest = distance_between_particles - spring_length;
+						const current_stretch_treshold = spring_length * stretch_treshold;
+						if (distance_from_rest > current_stretch_treshold) {
+							spring.rest_length += spring_length * r_inv * stretch_speed * (distance_from_rest - current_stretch_treshold);
+						} else {
+							const current_compress_treshold = -spring_length * compress_treshold;
+							if (distance_from_rest < current_compress_treshold) {
+								spring.rest_length += spring_length * r_inv * compress_speed * (distance_from_rest - current_compress_treshold);
+							}
+						}
+					}
+				}
+
+				const q1 = 1 - distance_between_particles * r_inv;
+
+				const ro_ij = q1 * q1;
+				delta_ro_i += ro_ij;
+				particle_j.ro += ro_ij;
+
+				const ro_near_ij = ro_ij * q1;
+				delta_ro_near_i += ro_near_ij;
+				particle_j.ro_near += ro_near_ij;
+
+				if (spring) {											
+					spring.unit_direction_to_j = unit_direction;
+				}
+
+				neighbor.q1 = q1;
+				neighbor.q2 = ro_ij;
+
+				const collision_velocity = velocity_i.sub(particle_j.velocity).dot(unit_direction);
+				if (collision_velocity > 0) {
+					// TODO: do we really need clamping
+					const max_collision_velocity = 100;
+					const collision_velocity_clamped = (collision_velocity > max_collision_velocity) ? max_collision_velocity : collision_velocity;
+					const delta_velocity_ij = unit_direction
+						.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
+					delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
+					particle_j.delta_velocity = particle_j.delta_velocity.add(delta_velocity_ij);
+				}
+			}
+			
+			particle_i.ro += delta_ro_i;
+			particle_i.ro_near += delta_ro_near_i;
+			particle_i.delta_velocity = particle_i.delta_velocity.add(delta_velocity_i);
+			particle_i.pt_springs = pt_springs_i;
+			particle_i.pt_state = pt_state_i;
+		}
 
 		spring = spring_list.next;
 		let prev = spring_list;

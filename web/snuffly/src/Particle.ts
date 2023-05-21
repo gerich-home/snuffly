@@ -76,12 +76,13 @@ export type Particle = {
 	spring_ij: Map<Particle, (null | Spring)>; //Связь между частицами i и j(null, если её нет)
 
 
-	//Соседи i-ой частицы 
+	//Соседи i-ой частицы с номерами меньше i
 	neighbors: {
 		particle: Particle,
+		distance_between_particles: number;
 		q1: number; // для SPH модели
 		q2: number; // для SPH модели
-		unit_direction: Vector; // вектор между частицами
+		unit_direction: Vector; // вектор к соседней частице
 	}[];
 
 	//Параметры каждой частицы
