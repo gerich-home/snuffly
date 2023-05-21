@@ -280,53 +280,33 @@ export class Jello implements IDrawable, IPower {
 			const pf = particle.position.mul(r_inv_half);
 
 			const s1 = Math.floor(pf.x);
-			const s2 = s1 + 1;
 			const q1 = Math.floor(pf.y);
-			const q2 = q1 + 1;
 
-			let row1 = rows.get(q1);
-			if (!row1) {
-				row1 = new Map<number, Particle[]>();
-				rows.set(q1, row1);
-			}
-			
-			let cell11 = row1.get(s1);
-			if (!cell11) {
-				cell11 = [];
-				row1.set(s1, cell11);
-			}
-			
-			cell11.push(particle);
-			
-			let cell12 = row1.get(s2);
-			if (!cell12) {
-				cell12 = [];
-				row1.set(s2, cell12);
-			}
-			
-			cell12.push(particle);
-			
-			let row2 = rows.get(q2);
-			if (!row2) {
-				row2 = new Map<number, Particle[]>();
-				rows.set(q2, row2);
-			}
-			
-			let cell21 = row2.get(s1);
-			if (!cell21) {
-				cell21 = [];
-				row2.set(s1, cell21);
-			}
-			
-			cell21.push(particle);
-			
-			let cell22 = row2.get(s2);
-			if (!cell22) {
-				cell22 = [];
-				row2.set(s2, cell22);
-			}
-			
-			cell22.push(particle);
+			const addToRow = function(q: number) {
+				let row = rows.get(q);
+				if (!row) {
+					row = new Map<number, Particle[]>();
+					rows.set(q, row);
+				}
+	
+				addToCell(s1);
+				addToCell(s1 + 1);
+				addToCell(s1 + 2);
+	
+				function addToCell(s: number) {
+					let cell = row!.get(s);
+					if (!cell) {
+						cell = [];
+						row!.set(s, cell);
+					}
+	
+					cell.push(particle);
+				}
+			};
+
+			addToRow(q1);
+			addToRow(q1 + 1);
+			addToRow(q1 + 2);
 		}
 
 		let activeChanged = false;
@@ -455,7 +435,9 @@ export class Jello implements IDrawable, IPower {
 
 						const collision_velocity = velocity_i.sub(particle_j.velocity).dot(unit_direction_to_j);
 						if (collision_velocity > 0) {
-							const collision_velocity_clamped = (collision_velocity > 100) ? 100 : collision_velocity;
+							// TODO: do we really need clamping
+							const max_collision_velocity = 100;
+							const collision_velocity_clamped = (collision_velocity > max_collision_velocity) ? max_collision_velocity : collision_velocity;
 							const delta_velocity_ij = unit_direction_to_j
 								.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
 							delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
