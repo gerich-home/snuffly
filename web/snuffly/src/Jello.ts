@@ -272,7 +272,7 @@ export class Jello implements IDrawable, IPower {
 
 			particle.position = position;
 			particle.velocity = Vector.fromB2D(particle.body.GetLinearVelocity());
-			
+
 			particle.ij = new Map<Particle, number>();
 			particle.neighbors = [];
 
@@ -288,24 +288,24 @@ export class Jello implements IDrawable, IPower {
 			const s1 = Math.floor(pf.x);
 			const q1 = Math.floor(pf.y);
 
-			const addToRow = function(q: number) {
+			const addToRow = function (q: number) {
 				let row = rows.get(q);
 				if (!row) {
 					row = new Map<number, Particle[]>();
 					rows.set(q, row);
 				}
-	
+
 				addToCell(s1);
 				addToCell(s1 + 1);
 				addToCell(s1 + 2);
-	
+
 				function addToCell(s: number) {
 					let cell = row!.get(s);
 					if (!cell) {
 						cell = [];
 						row!.set(s, cell);
 					}
-	
+
 					cell.push(particle);
 				}
 			};
@@ -336,13 +336,13 @@ export class Jello implements IDrawable, IPower {
 							ij_i.set(particle_j, -1);
 							continue;
 						}
-						
+
 						const dy = position_j.y - position_i.y;
 						if (dy > r || dy < -r) {
 							ij_i.set(particle_j, -1);
 							continue;
 						}
-						
+
 						const direction_to_j = new Vector(dx, dy);
 
 						const distance_between_particles_squared = direction_to_j.length2;
@@ -358,13 +358,14 @@ export class Jello implements IDrawable, IPower {
 						}
 
 						const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
+						const q1 = 1 - distance_between_particles * r_inv;
 
 						neighbors_i.push({
 							particle: particle_j,
 							distance_between_particles,
 							unit_direction: unit_direction_to_j,
-							q1: 0,
-							q2: 0,
+							q1,
+							q2: q1 * q1,
 						});
 
 						ij_i.set(particle_j, 1);
@@ -373,18 +374,46 @@ export class Jello implements IDrawable, IPower {
 			})
 		);
 
-		let activeChanged = false;
+		// calculate velocity changes
+		for (const particle_i of particles) {
+			const velocity_i = particle_i.velocity;
+			const neighbors_i = particle_i.neighbors;
 
+			let delta_velocity_i = Vector.zero;
+
+			for (const neighbor of neighbors_i) {
+				const {
+					particle: particle_j,
+					unit_direction,
+					q1
+				} = neighbor;
+
+				const collision_velocity = velocity_i.sub(particle_j.velocity).dot(unit_direction);
+				if (collision_velocity > 0) {
+					// TODO: do we really need clamping
+					const max_collision_velocity = 100;
+					const collision_velocity_clamped = (collision_velocity > max_collision_velocity) ? max_collision_velocity : collision_velocity;
+					const delta_velocity_ij = unit_direction
+						.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
+
+					delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
+					particle_j.delta_velocity = particle_j.delta_velocity.add(delta_velocity_ij);
+				}
+			}
+
+			particle_i.delta_velocity = particle_i.delta_velocity.add(delta_velocity_i);
+		}
+
+		let activeChanged = false;
 		let spring: Spring | null = null;
-		for(const particle_i of particles) {
+		for (const particle_i of particles) {
 			const velocity_i = particle_i.velocity;
 			const spring_ij_i = particle_i.spring_ij;
 			const neighbors_i = particle_i.neighbors;
 			const activeGroup_i = particle_i.activeGroup;
-			
+
 			let delta_ro_i = 0;
 			let delta_ro_near_i = 0;
-			let delta_velocity_i = Vector.zero;
 			let pt_springs_i = particle_i.pt_springs;
 			let pt_state_i = particle_i.pt_state;
 
@@ -393,8 +422,9 @@ export class Jello implements IDrawable, IPower {
 					particle: particle_j,
 					distance_between_particles,
 					unit_direction,
+					q1,
+					q2
 				} = neighbor;
-
 
 				let spring: Spring | null | undefined = null;
 
@@ -444,38 +474,21 @@ export class Jello implements IDrawable, IPower {
 					}
 				}
 
-				const q1 = 1 - distance_between_particles * r_inv;
-
-				const ro_ij = q1 * q1;
+				const ro_ij = q2;
 				delta_ro_i += ro_ij;
 				particle_j.ro += ro_ij;
 
-				const ro_near_ij = ro_ij * q1;
+				const ro_near_ij = q2 * q1;
 				delta_ro_near_i += ro_near_ij;
 				particle_j.ro_near += ro_near_ij;
 
-				if (spring) {											
+				if (spring) {
 					spring.unit_direction_to_j = unit_direction;
 				}
-
-				neighbor.q1 = q1;
-				neighbor.q2 = ro_ij;
-
-				const collision_velocity = velocity_i.sub(particle_j.velocity).dot(unit_direction);
-				if (collision_velocity > 0) {
-					// TODO: do we really need clamping
-					const max_collision_velocity = 100;
-					const collision_velocity_clamped = (collision_velocity > max_collision_velocity) ? max_collision_velocity : collision_velocity;
-					const delta_velocity_ij = unit_direction
-						.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
-					delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
-					particle_j.delta_velocity = particle_j.delta_velocity.add(delta_velocity_ij);
-				}
 			}
-			
+
 			particle_i.ro += delta_ro_i;
 			particle_i.ro_near += delta_ro_near_i;
-			particle_i.delta_velocity = particle_i.delta_velocity.add(delta_velocity_i);
 			particle_i.pt_springs = pt_springs_i;
 			particle_i.pt_state = pt_state_i;
 		}
