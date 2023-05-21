@@ -1,7 +1,13 @@
 ﻿import { IDrawable } from "./core/IDrawable";
 import { IPower } from "./core/IPower";
 import { Body, Box2D } from "./Box2D";
-import { Particle, Vector } from "./Particle";
+import { Particle, ParticleState, Vector } from "./Particle";
+
+const {
+	Sticky,
+	Elastic,
+	Fluid,
+} = ParticleState;
 
 export class Jello implements IDrawable, IPower {
 	ptCount: number;								//Количество частиц
@@ -115,7 +121,7 @@ export class Jello implements IDrawable, IPower {
 			press: 0,
 			press_near: 0,
 			pt_springs: 0,
-			pt_state: 0,
+			pt_state: Sticky,
 			position: Vector.zero,
 			ro: 0,
 			ro_near: 0,
@@ -360,7 +366,7 @@ export class Jello implements IDrawable, IPower {
 
 						const distance_between_particles = Math.sqrt(distance_between_particles_squared);
 						if ((!frozen && jelloState && (activeGroup_i || particle_j.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
-							((pt_state_i === 0) && (particle_j.pt_state === 0))) {					//слипание двух неактивных желе
+							((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
 							spring = spring_ij_i.get(particle_j);
 							if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
 								spring = spring_pool.next;
@@ -374,8 +380,8 @@ export class Jello implements IDrawable, IPower {
 									spring_list.next = spring;
 									pt_springs_i++;
 									particle_j.pt_springs++;
-									particle_j.pt_state = 0;
-									pt_state_i = 0;
+									particle_j.pt_state = Sticky;
+									pt_state_i = Sticky;
 									if (activeGroup_i) {
 										if (!particle_j.activeGroup) {
 											activeChanged = true;
@@ -390,17 +396,16 @@ export class Jello implements IDrawable, IPower {
 
 						if (spring) {
 							spring.current_length = distance_between_particles;
-							if (pt_state_i === 0) {
+							if (pt_state_i === Sticky) {
 								const spring_length = spring.rest_length;
-								let q2 = spring_length * stretch_treshold;
-								let q3 = distance_between_particles - spring_length;
-								if (q3 > q2) {
-									spring.rest_length += spring_length * r_inv * stretch_speed * (q3 - q2);
+								const distance_from_rest = distance_between_particles - spring_length;
+								const current_stretch_treshold = spring_length * stretch_treshold;
+								if (distance_from_rest > current_stretch_treshold) {
+									spring.rest_length += spring_length * r_inv * stretch_speed * (distance_from_rest - current_stretch_treshold);
 								} else {
-									q2 = -spring_length * compress_treshold;
-									q3 = distance_between_particles - spring_length;
-									if (q3 < q2) {
-										spring.rest_length += spring_length * r_inv * compress_speed * (q3 - q2);
+									const current_compress_treshold = -spring_length * compress_treshold;
+									if (distance_from_rest < current_compress_treshold) {
+										spring.rest_length += spring_length * r_inv * compress_speed * (distance_from_rest - current_compress_treshold);
 									}
 								}
 							}
@@ -481,7 +486,7 @@ export class Jello implements IDrawable, IPower {
 					if (d > 0.01) {
 						dv = dv.mul(1 / d);
 					}
-					if (particle_i.pt_state === 1) {
+					if (particle_i.pt_state === Elastic) {
 						if ((d > 4 * r) || ((d > 2 * r) && ((particle_i.pt_springs < 5) || (particle_j.pt_springs < 5)))) {
 							prev.next = spring.next;
 							particle_i.spring_ij.delete(particle_j);
@@ -518,7 +523,7 @@ export class Jello implements IDrawable, IPower {
 				}
 				if (d > 0.01) {
 					let q1: number;
-					if (particle_i.pt_state === 1) {
+					if (particle_i.pt_state === Elastic) {
 						q1 = k_spring * (s1 - d);// *(1-s1*rinv)
 					} else {
 						q1 = 2 * k_spring * (s1 - d);

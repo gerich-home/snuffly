@@ -63,6 +63,13 @@ export class Vector {
 	}
 };
 
+ //Состояние частицы(0-липкая, 1-упругая, 2-жидкая)
+export enum ParticleState {
+	Sticky = 0,
+	Elastic = 1,
+	Fluid = 2,
+};
+
 export type Particle = {
 	readonly body: Body; //Частицы желе
 	ij: Map<Particle, number>; //Просмотрена ли пара соседей ij(0-не просмотрена, 1-они соседи, -1-не соседи)?
@@ -87,7 +94,7 @@ export type Particle = {
 	velocity: Vector; //Скорость
 	delta_velocity: Vector; //Изменение скорости
 	pt_springs: number; //Число связей у частицы
-	pt_state: number; //Состояние частицы(0-липкая, 1-упругая, 2-жидкая)
+	pt_state: ParticleState;
 
 	groupqueue: number; //Очередь для выделения компоненты связности
 	activeGroup: boolean; //Входит ли i-ая точка в активный кусок желе?
