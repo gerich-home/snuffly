@@ -113,8 +113,9 @@ export class Jello implements IDrawable, IPower {
 
 
 		this.particles = particles.map<Particle>((body, i) => ({
+			index: i,
 			body,
-			ij: new Map<Particle, number>(),
+			ij: new Set<Particle>(),
 			neighbors: [],
 			spring_ij: new Map<Particle, Spring>(),
 			power: Vector.zero,
@@ -267,22 +268,11 @@ export class Jello implements IDrawable, IPower {
 
 		const rows = new Map<number, Map<number, Particle[]>>();
 
-		for (let particle of particles) {
-			const position = Vector.fromB2D(particle.body.GetPosition());
-
-			particle.position = position;
-			particle.velocity = Vector.fromB2D(particle.body.GetLinearVelocity());
-
-			particle.ij = new Map<Particle, number>();
-			particle.neighbors = [];
-
-			particle.ro = 0;
-			particle.ro_near = 0;
-			particle.power = Vector.zero;
-			particle.delta_velocity = Vector.zero;
+		for (const particle of particles) {
+			particle.position = Vector.fromB2D(particle.body.GetPosition());
 		}
 
-		for (let particle of particles) {
+		for (const particle of particles) {
 			const pf = particle.position.mul(r_inv_half);
 
 			const s1 = Math.floor(pf.x);
@@ -314,6 +304,12 @@ export class Jello implements IDrawable, IPower {
 			addToRow(q1 + 1);
 			addToRow(q1 + 2);
 		}
+
+		for (const particle of particles) {
+			particle.ij = new Set<Particle>();
+			particle.neighbors = [];
+		}
+
 		rows.forEach(row =>
 			row.forEach(cell => {
 				const cl = cell.length;
@@ -329,17 +325,17 @@ export class Jello implements IDrawable, IPower {
 						if (ij_i.has(particle_j)) {
 							continue;
 						}
+						
+						ij_i.add(particle_j);
 
 						const position_j = particle_j.position;
 						const dx = position_j.x - position_i.x;
 						if (dx > r || dx < -r) {
-							ij_i.set(particle_j, -1);
 							continue;
 						}
 
 						const dy = position_j.y - position_i.y;
 						if (dy > r || dy < -r) {
-							ij_i.set(particle_j, -1);
 							continue;
 						}
 
@@ -347,13 +343,11 @@ export class Jello implements IDrawable, IPower {
 
 						const distance_between_particles_squared = direction_to_j.length2;
 						if (distance_between_particles_squared > r2) {
-							ij_i.set(particle_j, -1);
 							continue;
 						}
 
 						const distance_between_particles = Math.sqrt(distance_between_particles_squared);
 						if (distance_between_particles <= 0.01) {
-							ij_i.set(particle_j, -1);
 							continue;
 						}
 
@@ -367,16 +361,17 @@ export class Jello implements IDrawable, IPower {
 							q1,
 							q2: q1 * q1,
 						});
-
-						ij_i.set(particle_j, 1);
 					}
 				}
 			})
 		);
 
+		const velocities = particles.map(particle => Vector.fromB2D(particle.body.GetLinearVelocity()));
+		const delta_velocities = particles.map(() => Vector.zero);
+
 		// calculate velocity changes
 		for (const particle_i of particles) {
-			const velocity_i = particle_i.velocity;
+			const velocity_i = velocities[particle_i.index];
 			const neighbors_i = particle_i.neighbors;
 
 			let delta_velocity_i = Vector.zero;
@@ -388,7 +383,7 @@ export class Jello implements IDrawable, IPower {
 					q1
 				} = neighbor;
 
-				const collision_velocity = velocity_i.sub(particle_j.velocity).dot(unit_direction);
+				const collision_velocity = velocity_i.sub(velocities[particle_j.index]).dot(unit_direction);
 				if (collision_velocity > 0) {
 					// TODO: do we really need clamping
 					const max_collision_velocity = 100;
@@ -397,11 +392,24 @@ export class Jello implements IDrawable, IPower {
 						.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
 
 					delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
-					particle_j.delta_velocity = particle_j.delta_velocity.add(delta_velocity_ij);
+					delta_velocities[particle_j.index] = delta_velocities[particle_j.index].add(delta_velocity_ij);
 				}
 			}
 
-			particle_i.delta_velocity = particle_i.delta_velocity.add(delta_velocity_i);
+			delta_velocities[particle_i.index] = delta_velocities[particle_i.index].add(delta_velocity_i);
+		}
+		
+		for (const particle of particles) {
+			velocities[particle.index]
+				.add(delta_velocities[particle.index])
+				.asB2D(Box2D, v => {
+					particle.body.SetLinearVelocity(v);
+				});
+		}
+
+		for (const particle of particles) {
+			particle.ro = 0;
+			particle.ro_near = 0;
 		}
 
 		for (const particle_i of particles) {
@@ -502,6 +510,10 @@ export class Jello implements IDrawable, IPower {
 
 			particle_i.pt_springs = pt_springs_i;
 			particle_i.pt_state = pt_state_i;
+		}
+
+		for (const particle of particles) {
+			particle.power = Vector.zero;
 		}
 
 		spring = spring_list.next;
@@ -698,11 +710,6 @@ export class Jello implements IDrawable, IPower {
 						particle.body.ApplyForceToCenter(v, true);
 					});
 			}
-
-			particle.velocity.add(particle.delta_velocity)
-				.asB2D(Box2D, v => {
-					particle.body.SetLinearVelocity(v);
-				});
 
 			/*new Vector(0, -0.06 * (Math.sin(cntr / 50)))
 				.asB2D(Box2D, v => {
