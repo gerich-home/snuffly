@@ -92,7 +92,6 @@ export type Particle = {
 	press: number; //Дальнее давление
 	press_near: number; //Ближнее давление
 	power: Vector; //Суммарные силы от связей и давления
-	position: Vector; //Координаты
 	pt_springs: number; //Число связей у частицы
 	pt_state: ParticleState;
 

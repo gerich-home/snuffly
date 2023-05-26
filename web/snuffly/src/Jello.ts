@@ -123,7 +123,6 @@ export class Jello implements IDrawable, IPower {
 			press_near: 0,
 			pt_springs: 0,
 			pt_state: Sticky,
-			position: Vector.zero,
 			ro: 0,
 			ro_near: 0,
 			velocity: Vector.zero,
@@ -268,12 +267,10 @@ export class Jello implements IDrawable, IPower {
 
 		const rows = new Map<number, Map<number, Particle[]>>();
 
-		for (const particle of particles) {
-			particle.position = Vector.fromB2D(particle.body.GetPosition());
-		}
+		const positions = particles.map(particle => Vector.fromB2D(particle.body.GetPosition()));
 
 		for (const particle of particles) {
-			const pf = particle.position.mul(r_inv_half);
+			const pf = positions[particle.index].mul(r_inv_half);
 
 			const s1 = Math.floor(pf.x);
 			const q1 = Math.floor(pf.y);
@@ -315,7 +312,7 @@ export class Jello implements IDrawable, IPower {
 				const cl = cell.length;
 				for (let ci = 1; ci < cl; ci++) {
 					const particle_i = cell[ci];
-					const position_i = particle_i.position;
+					const position_i = positions[particle_i.index];
 
 					const ij_i = particle_i.ij;
 					const neighbors_i = particle_i.neighbors;
@@ -328,7 +325,7 @@ export class Jello implements IDrawable, IPower {
 						
 						ij_i.add(particle_j);
 
-						const position_j = particle_j.position;
+						const position_j = positions[particle_j.index];
 						const dx = position_j.x - position_i.x;
 						if (dx > r || dx < -r) {
 							continue;
@@ -536,7 +533,7 @@ export class Jello implements IDrawable, IPower {
 				let d = spring.current_length;
 				let dv: Vector;
 				if (d < 0) {
-					dv = particle_j.position.sub(particle_i.position);
+					dv = positions[particle_j.index].sub(positions[particle_i.index]);
 					d = dv.length;
 					if (d > 0.01) {
 						dv = dv.mul(1 / d);
