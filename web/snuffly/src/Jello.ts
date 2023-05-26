@@ -296,12 +296,10 @@ export class Jello implements IDrawable, IPower {
 			addToRow(q1 + 2);
 		}
 
-		for (const particle of particles) {
-			particle.ij = new Set<Particle>();
-		}
-
+		
 		const neighbors: Neighbors[] = particles.map(() => []);
-
+		
+		const ij = particles.map(() => new Set<Particle>());
 		rows.forEach(row =>
 			row.forEach(cell => {
 				const cl = cell.length;
@@ -309,7 +307,7 @@ export class Jello implements IDrawable, IPower {
 					const particle_i = cell[ci];
 					const position_i = positions[particle_i.index];
 
-					const ij_i = particle_i.ij;
+					const ij_i = ij[particle_i.index];
 					const neighbors_i = neighbors[particle_i.index];
 
 					for (let cj = 0; cj < ci; cj++) {
