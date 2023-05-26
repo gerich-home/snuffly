@@ -141,7 +141,7 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
-	createArrayOf<T>(factory: (index: number) => T, count: number = this.ptCount) {
+	createArrayOf<T>(factory: (index: number) => T, count: number) {
 		return Array(count).fill(null).map((_, index) => factory(index));
 	}
 
@@ -592,7 +592,7 @@ export class Jello implements IDrawable, IPower {
 		if (activeChanged) {
 			if (jelloState) {
 				const groups: number[][] = [];
-				const groupid = this.createArrayOf(() => 0);
+				const groupid = particles.map(() => 0);
 				let s = 0;
 				for (let g = 1, j = 0; j < ptCount; j = g++) {
 					const particleJ = particles[j];
