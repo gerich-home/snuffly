@@ -76,16 +76,6 @@ export type Particle = {
 	ij: Set<Particle>;   // Просмотрена ли пара соседей ij?
 	spring_ij: Map<Particle, (null | Spring)>; //Связь между частицами i и j(null, если её нет)
 
-
-	//Соседи i-ой частицы с номерами меньше i
-	neighbors: {
-		particle: Particle,
-		distance_between_particles: number;
-		q1: number; // для SPH модели
-		q2: number; // для SPH модели
-		unit_direction: Vector; // вектор к соседней частице
-	}[];
-
 	//Параметры каждой частицы
 	ro: number; //Дальняя плотность
 	ro_near: number; //Ближняя плотность
@@ -98,3 +88,12 @@ export type Particle = {
 	groupqueue: number; //Очередь для выделения компоненты связности
 	activeGroup: boolean; //Входит ли i-ая точка в активный кусок желе?
 };
+
+//Соседи i-ой частицы с номерами меньше i
+export type Neighbors = {
+	particle: Particle,
+	distance_between_particles: number;
+	q1: number; // для SPH модели
+	q2: number; // для SPH модели
+	unit_direction: Vector; // вектор к соседней частице
+}[];

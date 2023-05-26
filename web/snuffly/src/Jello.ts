@@ -1,7 +1,7 @@
 ﻿import { IDrawable } from "./core/IDrawable";
 import { IPower } from "./core/IPower";
 import { Body, Box2D } from "./Box2D";
-import { Particle, ParticleState, Vector } from "./Particle";
+import { Neighbors, Particle, ParticleState, Vector } from "./Particle";
 
 const {
 	Sticky,
@@ -116,7 +116,6 @@ export class Jello implements IDrawable, IPower {
 			index: i,
 			body,
 			ij: new Set<Particle>(),
-			neighbors: [],
 			spring_ij: new Map<Particle, Spring>(),
 			power: Vector.zero,
 			press: 0,
@@ -304,8 +303,9 @@ export class Jello implements IDrawable, IPower {
 
 		for (const particle of particles) {
 			particle.ij = new Set<Particle>();
-			particle.neighbors = [];
 		}
+
+		const neighbors: Neighbors[] = particles.map(() => []);
 
 		rows.forEach(row =>
 			row.forEach(cell => {
@@ -315,7 +315,7 @@ export class Jello implements IDrawable, IPower {
 					const position_i = positions[particle_i.index];
 
 					const ij_i = particle_i.ij;
-					const neighbors_i = particle_i.neighbors;
+					const neighbors_i = neighbors[particle_i.index];
 
 					for (let cj = 0; cj < ci; cj++) {
 						const particle_j = cell[cj];
@@ -369,7 +369,7 @@ export class Jello implements IDrawable, IPower {
 		// calculate velocity changes
 		for (const particle_i of particles) {
 			const velocity_i = velocities[particle_i.index];
-			const neighbors_i = particle_i.neighbors;
+			const neighbors_i = neighbors[particle_i.index];
 
 			let delta_velocity_i = Vector.zero;
 
@@ -410,7 +410,7 @@ export class Jello implements IDrawable, IPower {
 		}
 
 		for (const particle_i of particles) {
-			const neighbors_i = particle_i.neighbors;
+			const neighbors_i = neighbors[particle_i.index];
 			
 			let delta_ro_i = 0;
 			let delta_ro_near_i = 0;
@@ -439,7 +439,7 @@ export class Jello implements IDrawable, IPower {
 		let spring: Spring | null = null;
 		for (const particle_i of particles) {
 			const spring_ij_i = particle_i.spring_ij;
-			const neighbors_i = particle_i.neighbors;
+			const neighbors_i = neighbors[particle_i.index];
 			const activeGroup_i = particle_i.activeGroup;
 
 			let pt_springs_i = particle_i.pt_springs;
@@ -674,8 +674,9 @@ export class Jello implements IDrawable, IPower {
 			let delta_power_i = Vector.zero;
 			const press_i = particle.press;
 			const press_near_i = particle.press_near;
+			const neighbors_i = neighbors[particle.index];
 
-			for (const neighbor of particle.neighbors) {
+			for (const neighbor of neighbors_i) {
 				const particleJ = neighbor.particle;
 				const unit_direction = neighbor.unit_direction;
 				const press_j = particleJ.press;
