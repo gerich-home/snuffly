@@ -489,16 +489,6 @@ export class Jello implements IDrawable, IPower {
 
 		this.applyPowers(neighbors, springsPower);
 
-		/*	
-		for (const particle of particles) {
-			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
-				.asB2D(Box2D, v => {
-					particle.body.ApplyForceToCenter(v, true);
-				});
-		}
-		cntr++;
-		*/
-
 		this.applyVelocityChanges(neighbors);
 
 	}
@@ -522,6 +512,16 @@ export class Jello implements IDrawable, IPower {
 				p.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
 			}
 		}
+		
+		/*	
+		for (const particle of particles) {
+			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
+				.asB2D(Box2D, v => {
+					particle.body.ApplyForceToCenter(v, true);
+				});
+		}
+		cntr++;
+		*/
 	}
 
 	private getSPHPower(neighbors: Neighbors[]) {
