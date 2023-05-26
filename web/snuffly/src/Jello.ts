@@ -15,8 +15,7 @@ export class Jello implements IDrawable, IPower {
 	particles: Particle[];
 
 
-	spring_list: Spring;						//Связый список активных связей
-	spring_pool: Spring;						//Пул связей
+	spring_list: Spring;						//Связный список активных связей
 
 	//Состояние желе
 	jelloState: boolean;						//Желе/жидкость
@@ -102,8 +101,7 @@ export class Jello implements IDrawable, IPower {
 		this.visible = visible;
 
 		this.spring_list = new Spring();
-		this.spring_pool = new Spring();
-
+		
 		this.offsetX = 0;
 		this.offsetY = 0;
 
@@ -128,11 +126,6 @@ export class Jello implements IDrawable, IPower {
 		this.activeParticles = this.particles;
 		if (this.ptCount > 0) {
 			this.particles[0].activeGroup = true;
-		}
-
-		const stringPoolSize = max_springs * this.ptCount * 0.5;
-		for (let i = 0; i < stringPoolSize; i++) {
-			this.spring_pool.next = new Spring(this.spring_pool.next);
 		}
 	}
 
@@ -245,7 +238,6 @@ export class Jello implements IDrawable, IPower {
 			stretch_treshold,
 			k_spring,
 			spring_list,
-			spring_pool,
 			max_springs,
 			frozen,
 			jelloState,
@@ -282,26 +274,19 @@ export class Jello implements IDrawable, IPower {
 					((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
 					spring = spring_ij_i.get(particle_j);
 					if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
-						spring = spring_pool.next;
-						if (spring) {
-							spring_pool.next = spring.next;
-							spring.next = spring_list.next;
-							spring.i = particle_i;
-							spring.j = particle_j;
-							spring.rest_length = distance_between_particles;
-							spring_ij_i.set(particle_j, spring);
-							spring_list.next = spring;
-							pt_springs_i++;
-							particle_j.pt_springs++;
-							particle_j.pt_state = Sticky;
-							pt_state_i = Sticky;
-							if (activeGroup_i) {
-								if (!particle_j.activeGroup) {
-									activeChanged = true;
-								}
-							} else if (particle_j.activeGroup) {
+						spring = new Spring(spring_list.next, particle_i, particle_j, distance_between_particles);
+						spring_ij_i.set(particle_j, spring);
+						spring_list.next = spring;
+						pt_springs_i++;
+						particle_j.pt_springs++;
+						particle_j.pt_state = Sticky;
+						pt_state_i = Sticky;
+						if (activeGroup_i) {
+							if (!particle_j.activeGroup) {
 								activeChanged = true;
 							}
+						} else if (particle_j.activeGroup) {
+							activeChanged = true;
 						}
 					}
 				}
@@ -344,8 +329,6 @@ export class Jello implements IDrawable, IPower {
 			if (s1 > r) {
 				prev.next = spring.next;
 				particle_i.spring_ij.delete(particle_j);
-				spring.next = spring_pool.next;
-				spring_pool.next = spring;
 				spring = prev.next;
 				particle_i.pt_springs--;
 				particle_j.pt_springs--;
@@ -364,8 +347,6 @@ export class Jello implements IDrawable, IPower {
 						if ((d > 4 * r) || ((d > 2 * r) && ((particle_i.pt_springs < 5) || (particle_j.pt_springs < 5)))) {
 							prev.next = spring.next;
 							particle_i.spring_ij.delete(particle_j);
-							spring.next = spring_pool.next;
-							spring_pool.next = spring;
 							spring = prev.next;
 							particle_i.pt_springs--;
 							particle_j.pt_springs--;
@@ -382,8 +363,6 @@ export class Jello implements IDrawable, IPower {
 						if (s1 > r) {
 							prev.next = spring.next;
 							particle_i.spring_ij.delete(particle_j);
-							spring.next = spring_pool.next;
-							spring_pool.next = spring;
 							spring = prev.next;
 							particle_i.pt_springs--;
 							particle_j.pt_springs--;
@@ -868,12 +847,12 @@ export class Spring {
 		next: Spring | null = null,
 		i: Particle | null = null,
 		j: Particle | null = null,
-		l: number = -1
+		rest_length: number = -1
 	) {
 		this.i = i;
 		this.j = j;
 		this.next = next;
-		this.rest_length = l;
+		this.rest_length = rest_length;
 	}
 }
 
