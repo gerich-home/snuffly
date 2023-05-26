@@ -84,7 +84,7 @@ export type Particle = {
 
 //Соседи i-ой частицы с номерами меньше i
 export type Neighbors = {
-	particle: Particle,
+	j: number,
 	distance_between_particles: number;
 	q1: number; // для SPH модели
 	q2: number; // для SPH модели
