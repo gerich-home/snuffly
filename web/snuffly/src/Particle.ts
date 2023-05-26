@@ -76,9 +76,6 @@ export type Particle = {
 	ij: Set<Particle>;   // Просмотрена ли пара соседей ij?
 	spring_ij: Map<Particle, (null | Spring)>; //Связь между частицами i и j(null, если её нет)
 
-	//Параметры каждой частицы
-	ro: number; //Дальняя плотность
-	ro_near: number; //Ближняя плотность
 	press: number; //Дальнее давление
 	press_near: number; //Ближнее давление
 	power: Vector; //Суммарные силы от связей и давления
