@@ -100,7 +100,7 @@ export class Jello implements IDrawable, IPower {
 		this.treshold = treshold;
 		this.visible = visible;
 
-		this.spring_list = new Spring();
+		this.spring_list = new Spring(null, -1, -1, Vector.zero, -1, -1);
 		
 		this.offsetX = 0;
 		this.offsetY = 0;
@@ -114,7 +114,7 @@ export class Jello implements IDrawable, IPower {
 			index: i,
 			body,
 			ij: new Set<Particle>(),
-			spring_ij: new Map<Particle, Spring>(),
+			spring_ij: new Map<number, Spring>(),
 			pt_springs: 0,
 			pt_state: Sticky,
 			velocity: Vector.zero,
@@ -272,10 +272,10 @@ export class Jello implements IDrawable, IPower {
 
 				if ((!frozen && jelloState && (activeGroup_i || particle_j.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
 					((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
-					spring = spring_ij_i.get(particle_j);
+					spring = spring_ij_i.get(j);
 					if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
-						spring = new Spring(spring_list.next, particle_i, particle_j, distance_between_particles);
-						spring_ij_i.set(particle_j, spring);
+						spring = new Spring(spring_list.next, i, j, unit_direction, distance_between_particles, distance_between_particles);
+						spring_ij_i.set(j, spring);
 						spring_list.next = spring;
 						pt_springs_i++;
 						particle_j.pt_springs++;
@@ -323,12 +323,12 @@ export class Jello implements IDrawable, IPower {
 		spring = spring_list.next;
 		let prev = spring_list;
 		while (spring) {
-			const particle_i = spring.i!;
-			const particle_j = spring.j!;
+			const particle_i = particles[spring.i];
+			const particle_j = particles[spring.j];
 			let s1 = spring.rest_length;
 			if (s1 > r) {
 				prev.next = spring.next;
-				particle_i.spring_ij.delete(particle_j);
+				particle_i.spring_ij.delete(spring.j);
 				spring = prev.next;
 				particle_i.pt_springs--;
 				particle_j.pt_springs--;
@@ -346,7 +346,7 @@ export class Jello implements IDrawable, IPower {
 					if (particle_i.pt_state === Elastic) {
 						if ((d > 4 * r) || ((d > 2 * r) && ((particle_i.pt_springs < 5) || (particle_j.pt_springs < 5)))) {
 							prev.next = spring.next;
-							particle_i.spring_ij.delete(particle_j);
+							particle_i.spring_ij.delete(spring.j);
 							spring = prev.next;
 							particle_i.pt_springs--;
 							particle_j.pt_springs--;
@@ -362,7 +362,7 @@ export class Jello implements IDrawable, IPower {
 						s1 = spring.rest_length;
 						if (s1 > r) {
 							prev.next = spring.next;
-							particle_i.spring_ij.delete(particle_j);
+							particle_i.spring_ij.delete(spring.j);
 							spring = prev.next;
 							particle_i.pt_springs--;
 							particle_j.pt_springs--;
@@ -411,7 +411,7 @@ export class Jello implements IDrawable, IPower {
 									groupend++;
 
 									for (let m = 0; m < i; m++) {
-										if (particles[i].spring_ij.has(particles[m])) {
+										if (particles[i].spring_ij.has(m)) {
 											if (groupid[m] === 0) {
 												groupid[m] = g;
 												group.push(m);
@@ -422,7 +422,7 @@ export class Jello implements IDrawable, IPower {
 									}
 									for (let m = i + 1; m < ptCount; m++) {
 										if (groupid[m] === 0) {
-											if (particles[m].spring_ij.has(particles[i])) {
+											if (particles[m].spring_ij.has(i)) {
 												groupid[m] = g;
 												group.push(m);
 												particles[grouphead].groupqueue = m;
@@ -769,11 +769,12 @@ export class Jello implements IDrawable, IPower {
 	}
 
 	draw(ctx: CanvasRenderingContext2D): void {
+		const particles = this.particles;
 		let spring = this.spring_list.next;
 		while (spring) {
 			ctx.beginPath();
-			const p1 = spring.i!.body.GetPosition();
-			const p2 = spring.j!.body.GetPosition();
+			const p1 = particles[spring.i].body.GetPosition();
+			const p2 = particles[spring.j].body.GetPosition();
 			ctx.moveTo(p1.x, p1.y);
 			ctx.lineTo(p2.x, p2.y);
 			ctx.stroke();
@@ -836,23 +837,14 @@ export class Jello implements IDrawable, IPower {
 
 //Пластичная связь
 export class Spring {
-	current_length: number = 0;
-	unit_direction_to_j: Vector = Vector.zero;
-	rest_length: number;
-	i: Particle | null;
-	j: Particle | null;
-	next: Spring | null;
-
 	constructor(
-		next: Spring | null = null,
-		i: Particle | null = null,
-		j: Particle | null = null,
-		rest_length: number = -1
+		public next: Spring | null,
+		public readonly i: number,
+		public readonly j: number,
+		public unit_direction_to_j: Vector,
+		public rest_length: number,
+		public current_length: number
 	) {
-		this.i = i;
-		this.j = j;
-		this.next = next;
-		this.rest_length = rest_length;
 	}
 }
 

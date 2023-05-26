@@ -73,7 +73,7 @@ export enum ParticleState {
 export type Particle = {
 	readonly body: Body; //Частицы желе
 	readonly index: number;
-	readonly spring_ij: Map<Particle, (null | Spring)>; //Связь между частицами i и j(null, если её нет)
+	readonly spring_ij: Map<number, (null | Spring)>; //Связь между частицами i и j
 
 	pt_springs: number; //Число связей у частицы
 	pt_state: ParticleState;
