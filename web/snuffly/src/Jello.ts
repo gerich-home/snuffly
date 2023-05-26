@@ -239,19 +239,12 @@ export class Jello implements IDrawable, IPower {
 			ptCount,
 			r,
 			r_inv,
-			r_inv_half,
-			r2,
 			Box2D,
 			compress_speed,
 			compress_treshold,
 			stretch_speed,
 			stretch_treshold,
-			k,
-			k_near,
 			k_spring,
-			rest_density,
-			viscosity_a,
-			viscosity_b,
 			spring_list,
 			spring_pool,
 			max_springs,
@@ -259,170 +252,10 @@ export class Jello implements IDrawable, IPower {
 			jelloState,
 		} = this;
 
-		const rows = new Map<number, Map<number, number[]>>();
 
-		const positions = particles.map(particle => Vector.fromB2D(particle.body.GetPosition()));
+		const positions = this.getPositions();
 
-		for (let i = 0; i < ptCount; i++) {
-			const pf = positions[i].mul(r_inv_half);
-
-			const s1 = Math.floor(pf.x);
-			const q1 = Math.floor(pf.y);
-
-			const addToRow = function (q: number) {
-				let row = rows.get(q);
-				if (!row) {
-					row = new Map<number, number[]>();
-					rows.set(q, row);
-				}
-
-				addToCell(s1);
-				addToCell(s1 + 1);
-				addToCell(s1 + 2);
-
-				function addToCell(s: number) {
-					let cell = row!.get(s);
-					if (!cell) {
-						cell = [];
-						row!.set(s, cell);
-					}
-
-					cell.push(i);
-				}
-			};
-
-			addToRow(q1);
-			addToRow(q1 + 1);
-			addToRow(q1 + 2);
-		}
-
-		
-		const neighbors: Neighbors[] = particles.map(() => []);
-		
-		const ij = particles.map(() => new Set<number>());
-		rows.forEach(row =>
-			row.forEach(cell => {
-				const cl = cell.length;
-				for (let ci = 1; ci < cl; ci++) {
-					const i = cell[ci];
-					const position_i = positions[i];
-
-					const ij_i = ij[i];
-					const neighbors_i = neighbors[i];
-
-					for (let cj = 0; cj < ci; cj++) {
-						const j = cell[cj];
-						if (ij_i.has(j)) {
-							continue;
-						}
-						
-						ij_i.add(j);
-
-						const position_j = positions[j];
-						const dx = position_j.x - position_i.x;
-						if (dx > r || dx < -r) {
-							continue;
-						}
-
-						const dy = position_j.y - position_i.y;
-						if (dy > r || dy < -r) {
-							continue;
-						}
-
-						const direction_to_j = new Vector(dx, dy);
-
-						const distance_between_particles_squared = direction_to_j.length2;
-						if (distance_between_particles_squared > r2) {
-							continue;
-						}
-
-						const distance_between_particles = Math.sqrt(distance_between_particles_squared);
-						if (distance_between_particles <= 0.01) {
-							continue;
-						}
-
-						const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
-						const q1 = 1 - distance_between_particles * r_inv;
-
-						neighbors_i.push({
-							j,
-							distance_between_particles,
-							unit_direction: unit_direction_to_j,
-							q1,
-							q2: q1 * q1,
-						});
-					}
-				}
-			})
-		);
-
-		const velocities = particles.map(particle => Vector.fromB2D(particle.body.GetLinearVelocity()));
-		const delta_velocities = particles.map(() => Vector.zero);
-
-		// calculate velocity changes
-		for (let i = 0; i < ptCount; i++) {
-			const velocity_i = velocities[i];
-			const neighbors_i = neighbors[i];
-
-			let delta_velocity_i = Vector.zero;
-
-			for (const neighbor of neighbors_i) {
-				const {
-					j,
-					unit_direction,
-					q1
-				} = neighbor;
-
-				const collision_velocity = velocity_i.sub(velocities[j]).dot(unit_direction);
-				if (collision_velocity > 0) {
-					// TODO: do we really need clamping
-					const max_collision_velocity = 100;
-					const collision_velocity_clamped = (collision_velocity > max_collision_velocity) ? max_collision_velocity : collision_velocity;
-					const delta_velocity_ij = unit_direction
-						.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
-
-					delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
-					delta_velocities[j] = delta_velocities[j].add(delta_velocity_ij);
-				}
-			}
-
-			delta_velocities[i] = delta_velocities[i].add(delta_velocity_i);
-		}
-		
-		for (let i = 0; i < ptCount; i++) {
-			velocities[i]
-				.add(delta_velocities[i])
-				.asB2D(Box2D, v => particles[i].body.SetLinearVelocity(v));
-		}
-
-		const ro = particles.map(() => 0);
-		const ro_near = particles.map(() => 0);
-
-		for (let i = 0; i < ptCount; i++) {
-			const neighbors_i = neighbors[i];
-			
-			let delta_ro_i = 0;
-			let delta_ro_near_i = 0;
-
-			for (const neighbor of neighbors_i) {
-				const {
-					j,
-					q1,
-					q2
-				} = neighbor;
-
-				const ro_ij = q2;
-				delta_ro_i += ro_ij;
-				ro[j] += ro_ij;
-
-				const ro_near_ij = q2 * q1;
-				delta_ro_near_i += ro_near_ij;
-				ro_near[j] += ro_near_ij;
-			}
-
-			ro[i] += delta_ro_i;
-			ro_near[i] += delta_ro_near_i;
-		}
+		const neighbors = this.getNeighbors(positions);
 
 		let activeChanged = false;
 		let spring: Spring | null = null;
@@ -501,7 +334,7 @@ export class Jello implements IDrawable, IPower {
 			particle_i.pt_state = pt_state_i;
 		}
 
-		const power = particles.map(() => Vector.zero);
+		const springsPower = particles.map(() => Vector.zero);
 
 		spring = spring_list.next;
 		let prev = spring_list;
@@ -571,8 +404,8 @@ export class Jello implements IDrawable, IPower {
 						q1 = 2 * k_spring * (s1 - d);
 					}
 					dv = dv.mul(q1);
-					power[particle_j.index] = power[particle_j.index].add(dv);
-					power[particle_i.index] = power[particle_i.index].sub(dv);
+					springsPower[particle_j.index] = springsPower[particle_j.index].add(dv);
+					springsPower[particle_i.index] = springsPower[particle_i.index].sub(dv);
 				}
 			}
 			prev = spring;
@@ -655,8 +488,44 @@ export class Jello implements IDrawable, IPower {
 			}
 		}
 
-		const press = ro.map(ro_i => k * (ro_i - rest_density));
-		const press_near = ro.map(ro_near_i => k_near * ro_near_i);
+		const sphPower = this.getSPHPower(neighbors);
+
+		for (let i = 0; i < ptCount; i++) {
+			const dv = springsPower[i].add(sphPower[i]);
+			const d = dv.length;
+			const body = particles[i].body;
+			if (d > 2) {
+				dv.mul(2 / d)
+					.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
+			} else if (d > 0.09) {
+				dv
+					.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
+			}
+		}
+
+		/*	
+		for (const particle of particles) {
+			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
+				.asB2D(Box2D, v => {
+					particle.body.ApplyForceToCenter(v, true);
+				});
+		}
+		cntr++;
+		*/
+		
+		this.applyVelocityChanges(neighbors);
+
+	}
+
+	private getSPHPower(neighbors: Neighbors[]) {
+		const {
+			particles,
+			ptCount,
+		} = this;
+
+		const { press, press_near } = this.getPress(neighbors);
+
+		const result = particles.map(() => Vector.zero);
 
 		for (let i = 0; i < ptCount; i++) {
 			const press_i = press[i];
@@ -664,7 +533,7 @@ export class Jello implements IDrawable, IPower {
 			const neighbors_i = neighbors[i];
 
 			let delta_power_i = Vector.zero;
-			
+
 			for (const neighbor of neighbors_i) {
 				const j = neighbor.j;
 				const unit_direction = neighbor.unit_direction;
@@ -677,34 +546,240 @@ export class Jello implements IDrawable, IPower {
 				const delta_power_ij = unit_direction.mul(dn);
 
 				delta_power_i = delta_power_i.add(delta_power_ij);
-				power[j] = power[j].add(delta_power_ij);
+				result[j] = result[j].add(delta_power_ij);
 			}
 
-			power[i] = power[i].sub(delta_power_i);
+			result[i] = result[i].sub(delta_power_i);
+		}
+
+		return result;
+	}
+
+	private getPress(neighbors: Neighbors[]) {
+		const {
+			k,
+			k_near,
+			rest_density,
+		} = this;
+
+		const { ro, ro_near } = this.getRo(neighbors);
+
+		const press = ro.map(ro_i => k * (ro_i - rest_density));
+		const press_near = ro_near.map(ro_near_i => k_near * ro_near_i);
+
+		return {
+			press,
+			press_near,
+		};
+	}
+
+	private getRo(neighbors: Neighbors[]) {
+		const {
+			particles,
+			ptCount,
+		} = this;
+
+		const ro = particles.map(() => 0);
+		const ro_near = particles.map(() => 0);
+
+		for (let i = 0; i < ptCount; i++) {
+			const neighbors_i = neighbors[i];
+
+			let delta_ro_i = 0;
+			let delta_ro_near_i = 0;
+
+			for (const neighbor of neighbors_i) {
+				const {
+					j, q1, q2
+				} = neighbor;
+
+				const ro_ij = q2;
+				delta_ro_i += ro_ij;
+				ro[j] += ro_ij;
+
+				const ro_near_ij = q2 * q1;
+				delta_ro_near_i += ro_near_ij;
+				ro_near[j] += ro_near_ij;
+			}
+
+			ro[i] += delta_ro_i;
+			ro_near[i] += delta_ro_near_i;
+		}
+
+		return {
+			ro,
+			ro_near,
+		};
+	}
+
+	private applyVelocityChanges(neighbors: Neighbors[]) {
+		const {
+			particles,
+			ptCount,
+			Box2D,
+			viscosity_a,
+			viscosity_b,
+		} = this;
+
+		const velocities = this.getVelocities();
+		const delta_velocities = particles.map(() => Vector.zero);
+
+		// calculate velocity changes
+		for (let i = 0; i < ptCount; i++) {
+			const velocity_i = velocities[i];
+			const neighbors_i = neighbors[i];
+
+			let delta_velocity_i = Vector.zero;
+
+			for (const neighbor of neighbors_i) {
+				const {
+					j, unit_direction, q1
+				} = neighbor;
+
+				const collision_velocity = velocity_i.sub(velocities[j]).dot(unit_direction);
+				if (collision_velocity > 0) {
+					// TODO: do we really need clamping
+					const max_collision_velocity = 100;
+					const collision_velocity_clamped = (collision_velocity > max_collision_velocity) ? max_collision_velocity : collision_velocity;
+					const delta_velocity_ij = unit_direction
+						.mul(q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
+
+					delta_velocity_i = delta_velocity_i.sub(delta_velocity_ij);
+					delta_velocities[j] = delta_velocities[j].add(delta_velocity_ij);
+				}
+			}
+
+			delta_velocities[i] = delta_velocities[i].add(delta_velocity_i);
 		}
 
 		for (let i = 0; i < ptCount; i++) {
-			const dv = power[i];
-			const d = dv.length;
-			const body = particles[i].body;
-			if (d > 2) {
-				dv.mul(2 / d)
-					.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
-			} else if (d > 0.09) {
-				dv
-					.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
-			}
+			velocities[i]
+				.add(delta_velocities[i])
+				.asB2D(Box2D, v => particles[i].body.SetLinearVelocity(v));
 		}
+	}
+
+	private getVelocities() {
+		return this.particles.map(particle => Vector.fromB2D(particle.body.GetLinearVelocity()));
+	}
+
+	private getNeighbors(positions: Vector[]) {
+		const {
+			particles,
+			r,
+			r_inv,
+			r2,
+		} = this;
+
+		// TODO move to constructor
+		const min_neighbor_distance = 0.01;
+		const min_neighbor_distance_squared = min_neighbor_distance * min_neighbor_distance;
 		
-		/*	
-		for (const particle of particles) {
-			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
-				.asB2D(Box2D, v => {
-					particle.body.ApplyForceToCenter(v, true);
-				});
+		const rows = this.getRows(positions);
+
+		const neighbors: Neighbors[] = particles.map(() => []);
+
+		const visited = particles.map(() => new Set<number>());
+
+		rows.forEach(row => row.forEach(cell => {
+			const cl = cell.length;
+			for (let ci = 1; ci < cl; ci++) {
+				const i = cell[ci];
+				const position_i = positions[i];
+
+				const visited_i = visited[i];
+				const neighbors_i = neighbors[i];
+
+				for (let cj = 0; cj < ci; cj++) {
+					const j = cell[cj];
+					if (visited_i.has(j)) {
+						continue;
+					}
+
+					visited_i.add(j);
+
+					const position_j = positions[j];
+					const dx = position_j.x - position_i.x;
+					if (dx > r || dx < -r) {
+						continue;
+					}
+
+					const dy = position_j.y - position_i.y;
+					if (dy > r || dy < -r) {
+						continue;
+					}
+
+					const direction_to_j = new Vector(dx, dy);
+
+					const distance_between_particles_squared = direction_to_j.length2;
+					if (distance_between_particles_squared > r2 || distance_between_particles_squared < min_neighbor_distance_squared) {
+						continue;
+					}
+
+					const distance_between_particles = Math.sqrt(distance_between_particles_squared);
+					const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
+					const q1 = 1 - distance_between_particles * r_inv;
+
+					neighbors_i.push({
+						j,
+						distance_between_particles,
+						unit_direction: unit_direction_to_j,
+						q1,
+						q2: q1 * q1,
+					});
+				}
+			}
+		}));
+
+		return neighbors;
+	}
+
+	private getRows(positions: Vector[]) {
+		const {
+			ptCount,
+			r_inv_half
+		} = this;
+
+		const rows = new Map<number, Map<number, number[]>>();
+
+		for (let i = 0; i < ptCount; i++) {
+			const pf = positions[i].mul(r_inv_half);
+
+			const s1 = Math.floor(pf.x);
+			const q1 = Math.floor(pf.y);
+
+			const addToRow = function (q: number) {
+				let row = rows.get(q);
+				if (!row) {
+					row = new Map<number, number[]>();
+					rows.set(q, row);
+				}
+
+				addToCell(s1);
+				addToCell(s1 + 1);
+				addToCell(s1 + 2);
+
+				function addToCell(s: number) {
+					let cell = row!.get(s);
+					if (!cell) {
+						cell = [];
+						row!.set(s, cell);
+					}
+
+					cell.push(i);
+				}
+			};
+
+			addToRow(q1);
+			addToRow(q1 + 1);
+			addToRow(q1 + 2);
 		}
-		cntr++;
-		*/
+
+		return rows;
+	}
+
+	private getPositions() {
+		return this.particles.map(particle => Vector.fromB2D(particle.body.GetPosition()));
 	}
 
 	draw(ctx: CanvasRenderingContext2D): void {
