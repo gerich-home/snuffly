@@ -239,7 +239,6 @@ export class Jello implements IDrawable, IPower {
 			ptCount,
 			r,
 			r_inv,
-			Box2D,
 			compress_speed,
 			compress_treshold,
 			stretch_speed,
@@ -488,20 +487,7 @@ export class Jello implements IDrawable, IPower {
 			}
 		}
 
-		const sphPower = this.getSPHPower(neighbors);
-
-		for (let i = 0; i < ptCount; i++) {
-			const dv = springsPower[i].add(sphPower[i]);
-			const d = dv.length;
-			const body = particles[i].body;
-			if (d > 2) {
-				dv.mul(2 / d)
-					.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
-			} else if (d > 0.09) {
-				dv
-					.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
-			}
-		}
+		this.applyPowers(neighbors, springsPower);
 
 		/*	
 		for (const particle of particles) {
@@ -512,9 +498,30 @@ export class Jello implements IDrawable, IPower {
 		}
 		cntr++;
 		*/
-		
+
 		this.applyVelocityChanges(neighbors);
 
+	}
+
+	private applyPowers(neighbors: Neighbors[], springsPower: Vector[]) {
+		const {
+			particles,
+			ptCount,
+			Box2D,
+		} = this;
+
+		const sphPower = this.getSPHPower(neighbors);
+
+		for (let i = 0; i < ptCount; i++) {
+			const dv = springsPower[i].add(sphPower[i]);
+			const d = dv.length;
+			const body = particles[i].body;
+			const p = (d > 2) ? dv.mul(2 / d) : ((d > 0.09) ? dv : null);
+
+			if (p) {
+				p.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
+			}
+		}
 	}
 
 	private getSPHPower(neighbors: Neighbors[]) {
@@ -674,7 +681,7 @@ export class Jello implements IDrawable, IPower {
 		// TODO move to constructor
 		const min_neighbor_distance = 0.01;
 		const min_neighbor_distance_squared = min_neighbor_distance * min_neighbor_distance;
-		
+
 		const rows = this.getRows(positions);
 
 		const neighbors: Neighbors[] = particles.map(() => []);
