@@ -117,9 +117,6 @@ export class Jello implements IDrawable, IPower {
 			body,
 			ij: new Set<Particle>(),
 			spring_ij: new Map<Particle, Spring>(),
-			power: Vector.zero,
-			press: 0,
-			press_near: 0,
 			pt_springs: 0,
 			pt_state: Sticky,
 			velocity: Vector.zero,
@@ -505,9 +502,7 @@ export class Jello implements IDrawable, IPower {
 			particle_i.pt_state = pt_state_i;
 		}
 
-		for (const particle of particles) {
-			particle.power = Vector.zero;
-		}
+		const power = particles.map(() => Vector.zero);
 
 		spring = spring_list.next;
 		let prev = spring_list;
@@ -577,8 +572,8 @@ export class Jello implements IDrawable, IPower {
 						q1 = 2 * k_spring * (s1 - d);
 					}
 					dv = dv.mul(q1);
-					particle_j.power = particle_j.power.add(dv);
-					particle_i.power = particle_i.power.sub(dv);
+					power[particle_j.index] = power[particle_j.index].add(dv);
+					power[particle_i.index] = power[particle_i.index].sub(dv);
 				}
 			}
 			prev = spring;
@@ -664,17 +659,17 @@ export class Jello implements IDrawable, IPower {
 		const press = ro.map(ro_i => k * (ro_i - rest_density));
 		const press_near = ro.map(ro_near_i => k_near * ro_near_i);
 
-		for (const particle of particles) {
+		for (const particle_i of particles) {
 			let delta_power_i = Vector.zero;
-			const press_i = press[particle.index];
-			const press_near_i = press_near[particle.index];
-			const neighbors_i = neighbors[particle.index];
+			const press_i = press[particle_i.index];
+			const press_near_i = press_near[particle_i.index];
+			const neighbors_i = neighbors[particle_i.index];
 
 			for (const neighbor of neighbors_i) {
-				const particleJ = neighbor.particle;
+				const particle_j = neighbor.particle;
 				const unit_direction = neighbor.unit_direction;
-				const press_j = press[particleJ.index];
-				const press_near_j = press_near[particleJ.index];
+				const press_j = press[particle_j.index];
+				const press_near_j = press_near[particle_j.index];
 
 				const dn = (press_i + press_j) * neighbor.q1 +
 					(press_near_i + press_near_j) * neighbor.q2;
@@ -682,14 +677,14 @@ export class Jello implements IDrawable, IPower {
 				const delta_power_ij = unit_direction.mul(dn);
 
 				delta_power_i = delta_power_i.add(delta_power_ij);
-				particleJ.power = particleJ.power.add(delta_power_ij);
+				power[particle_j.index] = power[particle_j.index].add(delta_power_ij);
 			}
 
-			particle.power = particle.power.sub(delta_power_i);
+			power[particle_i.index] = power[particle_i.index].sub(delta_power_i);
 		}
 
 		for (const particle of particles) {
-			const dv = particle.power;
+			const dv = power[particle.index];
 			const d = dv.length;
 			if (d > 2) {
 				dv.mul(2 / d)
@@ -702,14 +697,17 @@ export class Jello implements IDrawable, IPower {
 						particle.body.ApplyForceToCenter(v, true);
 					});
 			}
-
-			/*new Vector(0, -0.06 * (Math.sin(cntr / 50)))
+		}
+		
+		/*	
+		for (const particle of particles) {
+			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
 				.asB2D(Box2D, v => {
 					particle.body.ApplyForceToCenter(v, true);
-				});*/
+				});
 		}
-
 		cntr++;
+		*/
 	}
 
 	draw(ctx: CanvasRenderingContext2D): void {
