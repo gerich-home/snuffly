@@ -661,22 +661,20 @@ export class Jello implements IDrawable, IPower {
 			}
 		}
 
-		for (const particle of particles) {
-			particle.press = k * (ro[particle.index] - rest_density);
-			particle.press_near = k_near * ro_near[particle.index];
-		}
+		const press = ro.map(ro_i => k * (ro_i - rest_density));
+		const press_near = ro.map(ro_near_i => k_near * ro_near_i);
 
 		for (const particle of particles) {
 			let delta_power_i = Vector.zero;
-			const press_i = particle.press;
-			const press_near_i = particle.press_near;
+			const press_i = press[particle.index];
+			const press_near_i = press_near[particle.index];
 			const neighbors_i = neighbors[particle.index];
 
 			for (const neighbor of neighbors_i) {
 				const particleJ = neighbor.particle;
 				const unit_direction = neighbor.unit_direction;
-				const press_j = particleJ.press;
-				const press_near_j = particleJ.press_near;
+				const press_j = press[particleJ.index];
+				const press_near_j = press_near[particleJ.index];
 
 				const dn = (press_i + press_j) * neighbor.q1 +
 					(press_near_i + press_near_j) * neighbor.q2;
