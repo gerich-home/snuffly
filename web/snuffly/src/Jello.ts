@@ -259,7 +259,7 @@ export class Jello implements IDrawable, IPower {
 			jelloState,
 		} = this;
 
-		const rows = new Map<number, Map<number, Particle[]>>();
+		const rows = new Map<number, Map<number, number[]>>();
 
 		const positions = particles.map(particle => Vector.fromB2D(particle.body.GetPosition()));
 
@@ -272,7 +272,7 @@ export class Jello implements IDrawable, IPower {
 			const addToRow = function (q: number) {
 				let row = rows.get(q);
 				if (!row) {
-					row = new Map<number, Particle[]>();
+					row = new Map<number, number[]>();
 					rows.set(q, row);
 				}
 
@@ -287,7 +287,7 @@ export class Jello implements IDrawable, IPower {
 						row!.set(s, cell);
 					}
 
-					cell.push(particle);
+					cell.push(particle.index);
 				}
 			};
 
@@ -299,26 +299,26 @@ export class Jello implements IDrawable, IPower {
 		
 		const neighbors: Neighbors[] = particles.map(() => []);
 		
-		const ij = particles.map(() => new Set<Particle>());
+		const ij = particles.map(() => new Set<number>());
 		rows.forEach(row =>
 			row.forEach(cell => {
 				const cl = cell.length;
 				for (let ci = 1; ci < cl; ci++) {
-					const particle_i = cell[ci];
-					const position_i = positions[particle_i.index];
+					const i = cell[ci];
+					const position_i = positions[i];
 
-					const ij_i = ij[particle_i.index];
-					const neighbors_i = neighbors[particle_i.index];
+					const ij_i = ij[i];
+					const neighbors_i = neighbors[i];
 
 					for (let cj = 0; cj < ci; cj++) {
-						const particle_j = cell[cj];
-						if (ij_i.has(particle_j)) {
+						const j = cell[cj];
+						if (ij_i.has(j)) {
 							continue;
 						}
 						
-						ij_i.add(particle_j);
+						ij_i.add(j);
 
-						const position_j = positions[particle_j.index];
+						const position_j = positions[j];
 						const dx = position_j.x - position_i.x;
 						if (dx > r || dx < -r) {
 							continue;
@@ -345,7 +345,7 @@ export class Jello implements IDrawable, IPower {
 						const q1 = 1 - distance_between_particles * r_inv;
 
 						neighbors_i.push({
-							particle: particle_j,
+							particle: particles[j],
 							distance_between_particles,
 							unit_direction: unit_direction_to_j,
 							q1,
