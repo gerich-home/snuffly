@@ -1,7 +1,7 @@
 ﻿import { IDrawable } from "./core/IDrawable";
 import { IPower } from "./core/IPower";
 import { Body, Box2D } from "./Box2D";
-import { Neighbors, NeighborsData, Particle, ParticleState, Vector } from "./Particle";
+import { Neighbor, NeighborsData, Particle, ParticleState, Spring, Vector } from "./Particle";
 
 const {
 	Sticky,
@@ -100,7 +100,7 @@ export class Jello implements IDrawable, IPower {
 		this.treshold = treshold;
 		this.visible = visible;
 
-		this.spring_list = new Spring(null, -1, -1, Vector.zero, -1, -1);
+		this.spring_list = new Spring(-1, -1, null, Vector.zero, -1, -1);
 		
 		this.offsetX = 0;
 		this.offsetY = 0;
@@ -232,8 +232,6 @@ export class Jello implements IDrawable, IPower {
 			ptCount,
 			r,
 			r_inv,
-			compress_speed,
-			compress_treshold,
 			stretch_speed,
 			stretch_treshold,
 			k_spring,
@@ -247,6 +245,8 @@ export class Jello implements IDrawable, IPower {
 		const positions = this.getPositions();
 
 		const neighborsData = this.getNeighborsData(positions);
+		
+		this.updateSprings(neighborsData, positions);
 
 		let activeChanged = false;
 		let spring: Spring | null = null;
@@ -274,7 +274,7 @@ export class Jello implements IDrawable, IPower {
 					((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
 					spring = spring_ij_i.get(j);
 					if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
-						spring = new Spring(spring_list.next, i, j, unit_direction, distance_between_particles, distance_between_particles);
+						spring = new Spring(i, j, spring_list.next, unit_direction, distance_between_particles, distance_between_particles);
 						spring_ij_i.set(j, spring);
 						spring_list.next = spring;
 						pt_springs_i++;
@@ -289,28 +289,6 @@ export class Jello implements IDrawable, IPower {
 							activeChanged = true;
 						}
 					}
-				}
-
-
-				if (spring) {
-					spring.current_length = distance_between_particles;
-					if (pt_state_i === Sticky) {
-						const spring_length = spring.rest_length;
-						const distance_from_rest = distance_between_particles - spring_length;
-						const current_stretch_treshold = spring_length * stretch_treshold;
-						if (distance_from_rest > current_stretch_treshold) {
-							spring.rest_length += spring_length * r_inv * stretch_speed * (distance_from_rest - current_stretch_treshold);
-						} else {
-							const current_compress_treshold = -spring_length * compress_treshold;
-							if (distance_from_rest < current_compress_treshold) {
-								spring.rest_length += spring_length * r_inv * compress_speed * (distance_from_rest - current_compress_treshold);
-							}
-						}
-					}
-				}
-
-				if (spring) {
-					spring.unit_direction_to_j = unit_direction;
 				}
 			}
 
@@ -472,7 +450,53 @@ export class Jello implements IDrawable, IPower {
 
 	}
 
-	private applyPowers(neighbors: Neighbors[], springsPower: Vector[]) {
+	private updateSprings(neighborsData: NeighborsData, positions: Vector[]) {
+		const {
+			particles,
+			r_inv,
+			compress_speed,
+			compress_treshold,
+			stretch_speed,
+			stretch_treshold,
+			spring_list,
+		} = this;
+
+		let spring: Spring | null = spring_list.next;
+		while (spring) {
+			const { i, j } = spring;
+
+			const neighbor = neighborsData.neighbors_map[i].get(j);
+
+			if (neighbor) {
+				spring.current_length = neighbor.distance_between_particles;
+				spring.unit_direction_to_j = neighbor.unit_direction;
+			} else {
+				const dv = positions[j].sub(positions[i]);
+				const { length } = dv;
+				spring.current_length = length;
+				spring.unit_direction_to_j = dv.mul(1 / length);
+			}
+
+
+			if (particles[i].pt_state === Sticky) {
+				const spring_length = spring.rest_length;
+				const distance_from_rest = spring.current_length - spring_length;
+				const current_stretch_treshold = spring_length * stretch_treshold;
+				if (distance_from_rest > current_stretch_treshold) {
+					spring.rest_length += spring_length * r_inv * stretch_speed * (distance_from_rest - current_stretch_treshold);
+				} else {
+					const current_compress_treshold = -spring_length * compress_treshold;
+					if (distance_from_rest < current_compress_treshold) {
+						spring.rest_length += spring_length * r_inv * compress_speed * (distance_from_rest - current_compress_treshold);
+					}
+				}
+			}
+
+			spring = spring.next;
+		}
+	}
+
+	private applyPowers(neighbors: Neighbor[][], springsPower: Vector[]) {
 		const {
 			particles,
 			ptCount,
@@ -503,7 +527,7 @@ export class Jello implements IDrawable, IPower {
 		*/
 	}
 
-	private getSPHPower(neighbors: Neighbors[]) {
+	private getSPHPower(neighbors: Neighbor[][]) {
 		const {
 			particles,
 			ptCount,
@@ -541,7 +565,7 @@ export class Jello implements IDrawable, IPower {
 		return result;
 	}
 
-	private getPress(neighbors: Neighbors[]) {
+	private getPress(neighbors: Neighbor[][]) {
 		const {
 			k,
 			k_near,
@@ -559,7 +583,7 @@ export class Jello implements IDrawable, IPower {
 		};
 	}
 
-	private getRo(neighbors: Neighbors[]) {
+	private getRo(neighbors: Neighbor[][]) {
 		const {
 			particles,
 			ptCount,
@@ -598,7 +622,7 @@ export class Jello implements IDrawable, IPower {
 		};
 	}
 
-	private applyVelocityChanges(neighbors: Neighbors[]) {
+	private applyVelocityChanges(neighbors: Neighbor[][]) {
 		const {
 			particles,
 			ptCount,
@@ -665,7 +689,7 @@ export class Jello implements IDrawable, IPower {
 
 		const neighbors: NeighborsData = {
 			neighbors: particles.map(() => []),
-			indices: particles.map(() => new Set())
+			neighbors_map: particles.map(() => new Map())
 		};
 
 		const visited = particles.map(() => new Set<number>());
@@ -678,7 +702,7 @@ export class Jello implements IDrawable, IPower {
 
 				const visited_i = visited[i];
 				const neighbors_i = neighbors.neighbors[i];
-				const indices_i = neighbors.indices[i];
+				const indices_i = neighbors.neighbors_map[i];
 
 				for (let cj = 0; cj < ci; cj++) {
 					const j = cell[cj];
@@ -710,14 +734,16 @@ export class Jello implements IDrawable, IPower {
 					const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
 					const q1 = 1 - distance_between_particles * r_inv;
 
-					neighbors_i.push({
+					const neighbor = {
 						j,
 						distance_between_particles,
 						unit_direction: unit_direction_to_j,
 						q1,
 						q2: q1 * q1,
-					});
-					indices_i.add(j)
+					};
+
+					neighbors_i.push(neighbor);
+					indices_i.set(j, neighbor);
 				}
 			}
 		}));
@@ -837,19 +863,6 @@ export class Jello implements IDrawable, IPower {
 
 
 		//SG bmp.unlock();
-	}
-}
-
-//Пластичная связь
-export class Spring {
-	constructor(
-		public next: Spring | null,
-		public readonly i: number,
-		public readonly j: number,
-		public unit_direction_to_j: Vector,
-		public rest_length: number,
-		public current_length: number
-	) {
 	}
 }
 

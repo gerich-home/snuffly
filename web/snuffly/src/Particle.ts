@@ -1,5 +1,4 @@
 import { Body, Box2D, Vec2 } from "./Box2D";
-import { Spring } from "./Jello";
 
 export class Vector {
 	constructor(
@@ -82,16 +81,30 @@ export type Particle = {
 	activeGroup: boolean; //Входит ли i-ая точка в активный кусок желе?
 };
 
+//Соседи i-ой частицы с номерами меньше i
 export type NeighborsData = {
-	neighbors: Neighbors[];
-	indices: Set<number>[];
+	neighbors: Neighbor[][];
+	neighbors_map: Map<number, Neighbor>[];
 };
 
-//Соседи i-ой частицы с номерами меньше i
-export type Neighbors = {
+export type Neighbor = {
 	j: number,
 	distance_between_particles: number;
 	q1: number; // для SPH модели
 	q2: number; // для SPH модели
 	unit_direction: Vector; // вектор к соседней частице
-}[];
+};
+
+
+//Пластичная связь
+export class Spring {
+	constructor(
+		public readonly i: number,
+		public readonly j: number,
+		public next: Spring | null,
+		public unit_direction_to_j: Vector,
+		public rest_length: number,
+		public current_length: number
+	) {
+	}
+}
