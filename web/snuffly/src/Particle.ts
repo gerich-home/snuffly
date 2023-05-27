@@ -82,6 +82,11 @@ export type Particle = {
 	activeGroup: boolean; //Входит ли i-ая точка в активный кусок желе?
 };
 
+export type NeighborsData = {
+	neighbors: Neighbors[];
+	indices: Set<number>[];
+};
+
 //Соседи i-ой частицы с номерами меньше i
 export type Neighbors = {
 	j: number,

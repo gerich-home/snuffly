@@ -1,7 +1,7 @@
 ﻿import { IDrawable } from "./core/IDrawable";
 import { IPower } from "./core/IPower";
 import { Body, Box2D } from "./Box2D";
-import { Neighbors, Particle, ParticleState, Vector } from "./Particle";
+import { Neighbors, NeighborsData, Particle, ParticleState, Vector } from "./Particle";
 
 const {
 	Sticky,
@@ -246,13 +246,13 @@ export class Jello implements IDrawable, IPower {
 
 		const positions = this.getPositions();
 
-		const neighbors = this.getNeighbors(positions);
+		const neighborsData = this.getNeighborsData(positions);
 
 		let activeChanged = false;
 		let spring: Spring | null = null;
 		for (let i = 0; i < ptCount; i++) {
 			const particle_i = particles[i];
-			const neighbors_i = neighbors[i];
+			const neighbors_i = neighborsData.neighbors[i];
 			const spring_ij_i = particle_i.spring_ij;
 			const activeGroup_i = particle_i.activeGroup;
 
@@ -466,9 +466,9 @@ export class Jello implements IDrawable, IPower {
 			}
 		}
 
-		this.applyPowers(neighbors, springsPower);
+		this.applyPowers(neighborsData.neighbors, springsPower);
 
-		this.applyVelocityChanges(neighbors);
+		this.applyVelocityChanges(neighborsData.neighbors);
 
 	}
 
@@ -649,7 +649,7 @@ export class Jello implements IDrawable, IPower {
 		return this.particles.map(particle => Vector.fromB2D(particle.body.GetLinearVelocity()));
 	}
 
-	private getNeighbors(positions: Vector[]) {
+	private getNeighborsData(positions: Vector[]) {
 		const {
 			particles,
 			r,
@@ -663,7 +663,10 @@ export class Jello implements IDrawable, IPower {
 
 		const rows = this.getRows(positions);
 
-		const neighbors: Neighbors[] = particles.map(() => []);
+		const neighbors: NeighborsData = {
+			neighbors: particles.map(() => []),
+			indices: particles.map(() => new Set())
+		};
 
 		const visited = particles.map(() => new Set<number>());
 
@@ -674,7 +677,8 @@ export class Jello implements IDrawable, IPower {
 				const position_i = positions[i];
 
 				const visited_i = visited[i];
-				const neighbors_i = neighbors[i];
+				const neighbors_i = neighbors.neighbors[i];
+				const indices_i = neighbors.indices[i];
 
 				for (let cj = 0; cj < ci; cj++) {
 					const j = cell[cj];
@@ -713,6 +717,7 @@ export class Jello implements IDrawable, IPower {
 						q1,
 						q2: q1 * q1,
 					});
+					indices_i.add(j)
 				}
 			}
 		}));
