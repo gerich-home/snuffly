@@ -230,143 +230,22 @@ export class Jello implements IDrawable, IPower {
 		const {
 			particles,
 			ptCount,
-			r,
-			r_inv,
-			stretch_speed,
-			stretch_treshold,
-			k_spring,
-			spring_list,
-			max_springs,
-			frozen,
 			jelloState,
 		} = this;
-
 
 		const positions = this.getPositions();
 
 		const neighborsData = this.getNeighborsData(positions);
+
+		this.updateSpringsLengthsAndDirections(neighborsData, positions);
+		this.updateSoftSpringsRestLength();
 		
-		this.updateSprings(neighborsData, positions);
-
 		let activeChanged = false;
-		let spring: Spring | null = null;
-		for (let i = 0; i < ptCount; i++) {
-			const particle_i = particles[i];
-			const neighbors_i = neighborsData.neighbors[i];
-			const spring_ij_i = particle_i.spring_ij;
-			const activeGroup_i = particle_i.activeGroup;
-
-			let pt_springs_i = particle_i.pt_springs;
-			let pt_state_i = particle_i.pt_state;
-
-			for (const neighbor of neighbors_i) {
-				const {
-					j,
-					distance_between_particles,
-					unit_direction,
-				} = neighbor;
-
-				const particle_j = particles[j];
-
-				let spring: Spring | null | undefined = null;
-
-				if ((!frozen && jelloState && (activeGroup_i || particle_j.activeGroup)) ||		//слипание двух активных кусков/слипание активного и неактивного
-					((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) {			//слипание двух неактивных желе
-					spring = spring_ij_i.get(j);
-					if (!spring && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
-						spring = new Spring(i, j, spring_list.next, unit_direction, distance_between_particles, distance_between_particles);
-						spring_ij_i.set(j, spring);
-						spring_list.next = spring;
-						pt_springs_i++;
-						particle_j.pt_springs++;
-						particle_j.pt_state = Sticky;
-						pt_state_i = Sticky;
-						if (activeGroup_i) {
-							if (!particle_j.activeGroup) {
-								activeChanged = true;
-							}
-						} else if (particle_j.activeGroup) {
-							activeChanged = true;
-						}
-					}
-				}
-			}
-
-			particle_i.pt_springs = pt_springs_i;
-			particle_i.pt_state = pt_state_i;
-		}
-
-		const springsPower = particles.map(() => Vector.zero);
-
-		spring = spring_list.next;
-		let prev = spring_list;
-		while (spring) {
-			const particle_i = particles[spring.i];
-			const particle_j = particles[spring.j];
-			let s1 = spring.rest_length;
-			if (s1 > r) {
-				prev.next = spring.next;
-				particle_i.spring_ij.delete(spring.j);
-				spring = prev.next;
-				particle_i.pt_springs--;
-				particle_j.pt_springs--;
-				activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
-				continue;
-			} else {
-				let d = spring.current_length;
-				let dv: Vector;
-				if (d < 0) {
-					dv = positions[particle_j.index].sub(positions[particle_i.index]);
-					d = dv.length;
-					if (d > 0.01) {
-						dv = dv.mul(1 / d);
-					}
-					if (particle_i.pt_state === Elastic) {
-						if ((d > 4 * r) || ((d > 2 * r) && ((particle_i.pt_springs < 5) || (particle_j.pt_springs < 5)))) {
-							prev.next = spring.next;
-							particle_i.spring_ij.delete(spring.j);
-							spring = prev.next;
-							particle_i.pt_springs--;
-							particle_j.pt_springs--;
-							activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
-							continue;
-						}
-					} else {
-						const s2 = s1 * stretch_treshold;
-						const s3 = d - s1;
-						if (s3 > s2) {
-							spring.rest_length += s1 * r_inv * stretch_speed * (s3 - s2);
-						}
-						s1 = spring.rest_length;
-						if (s1 > r) {
-							prev.next = spring.next;
-							particle_i.spring_ij.delete(spring.j);
-							spring = prev.next;
-							particle_i.pt_springs--;
-							particle_j.pt_springs--;
-							activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
-							continue;
-						}
-					}
-				} else {
-					dv = spring.unit_direction_to_j;
-					spring.current_length = -1;
-				}
-				if (d > 0.01) {
-					let q1: number;
-					if (particle_i.pt_state === Elastic) {
-						q1 = k_spring * (s1 - d);// *(1-s1*rinv)
-					} else {
-						q1 = 2 * k_spring * (s1 - d);
-					}
-					dv = dv.mul(q1);
-					springsPower[particle_j.index] = springsPower[particle_j.index].add(dv);
-					springsPower[particle_i.index] = springsPower[particle_i.index].sub(dv);
-				}
-			}
-			prev = spring;
-			spring = spring.next;
-		}
+		activeChanged ||= this.removeTooStretchedSoftSprings();
+		activeChanged ||= this.removeTooStretchedHardSprings();
+		activeChanged ||= this.addNewSprings(neighborsData);
+		
+		const springsPower = this.getSpringsPower();
 
 		if (activeChanged) {
 			if (jelloState) {
@@ -447,21 +326,161 @@ export class Jello implements IDrawable, IPower {
 		this.applyPowers(neighborsData.neighbors, springsPower);
 
 		this.applyVelocityChanges(neighborsData.neighbors);
-
 	}
 
-	private updateSprings(neighborsData: NeighborsData, positions: Vector[]) {
+	private getSpringsPower() {
 		const {
 			particles,
-			r_inv,
-			compress_speed,
-			compress_treshold,
-			stretch_speed,
-			stretch_treshold,
+			k_spring,
 			spring_list,
 		} = this;
 
-		let spring: Spring | null = spring_list.next;
+		const springsPower = particles.map(() => Vector.zero);
+		let spring = spring_list.next;
+
+		while (spring) {
+			const {
+				i, j, rest_length, current_length,
+			} = spring;
+			const particle_i = particles[spring.i];
+
+			const powerMagnitude = (particle_i.pt_state === Elastic ? 1 : 2) * k_spring * (rest_length - current_length);
+			const power = spring.unit_direction_to_j.mul(powerMagnitude);
+
+			springsPower[j] = springsPower[j].add(power);
+			springsPower[i] = springsPower[i].sub(power);
+
+			spring = spring.next;
+		}
+
+		return springsPower;
+	}
+
+	private removeTooStretchedSoftSprings(): boolean {
+		const {
+			particles,
+			r,
+			spring_list,
+		} = this;
+
+		let activeChanged = false;
+		let spring = spring_list.next;
+		let prev = spring_list;
+
+		while (spring) {
+			if (spring.rest_length > r) {
+				const particle_i = particles[spring.i];
+				const particle_j = particles[spring.j];
+				particle_i.spring_ij.delete(spring.j);
+				particle_i.pt_springs--;
+				particle_j.pt_springs--;
+				activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
+
+				prev.next = spring.next;
+				spring = prev.next;
+
+				continue;
+			}
+
+			prev = spring;
+			spring = spring.next;
+		}
+
+		return activeChanged;
+	}
+
+	private removeTooStretchedHardSprings(): boolean {
+		const {
+			particles,
+			r,
+			spring_list,
+		} = this;
+
+		let activeChanged = false;
+		let spring = spring_list.next;
+		let prev = spring_list;
+
+		while (spring) {
+			const particle_i = particles[spring.i];
+			const particle_j = particles[spring.j];
+			const current_length = spring.current_length;
+
+			if (particle_i.pt_state === Elastic) {
+				if ((current_length > 4 * r) || ((current_length > 2 * r) && ((particle_i.pt_springs < 5) || (particle_j.pt_springs < 5)))) {
+					prev.next = spring.next;
+					particle_i.spring_ij.delete(spring.j);
+					spring = prev.next;
+					particle_i.pt_springs--;
+					particle_j.pt_springs--;
+					activeChanged ||= particle_i.activeGroup || particle_j.activeGroup;
+					continue;
+				}
+			}
+
+			prev = spring;
+			spring = spring.next;
+		}
+
+		return activeChanged;
+	}
+
+	private addNewSprings(neighborsData: NeighborsData): boolean {
+		const {
+			particles,
+			ptCount,
+			spring_list,
+			max_springs,
+			frozen,
+			jelloState,
+		} = this;
+
+		const activeIsSticky = !frozen && jelloState;
+
+		let activeChanged = false;
+		for (let i = 0; i < ptCount; i++) {
+			const particle_i = particles[i];
+			const neighbors_i = neighborsData.neighbors[i];
+			const spring_ij_i = particle_i.spring_ij;
+			const activeGroup_i = particle_i.activeGroup;
+
+			let pt_springs_i = particle_i.pt_springs;
+			let pt_state_i = particle_i.pt_state;
+
+			for (const neighbor of neighbors_i) {
+				const {
+					j, distance_between_particles, unit_direction,
+				} = neighbor;
+
+				const particle_j = particles[j];
+
+				if ((activeIsSticky && (activeGroup_i || particle_j.activeGroup)) || //слипание двух активных кусков/слипание активного и неактивного
+					((pt_state_i === Sticky) && (particle_j.pt_state === Sticky))) { //слипание двух неактивных желе
+					if (!spring_ij_i.has(j) && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
+						const spring = new Spring(i, j, spring_list.next, unit_direction, distance_between_particles, distance_between_particles);
+						spring_ij_i.set(j, spring);
+						spring_list.next = spring;
+						pt_springs_i++;
+						particle_j.pt_springs++;
+						particle_j.pt_state = Sticky;
+						pt_state_i = Sticky;
+						activeChanged ||= activeGroup_i ? !particle_j.activeGroup : particle_j.activeGroup;
+					}
+				}
+			}
+
+			particle_i.pt_springs = pt_springs_i;
+			particle_i.pt_state = pt_state_i;
+		}
+
+		return activeChanged;
+	}
+
+	private updateSpringsLengthsAndDirections(neighborsData: NeighborsData, positions: Vector[]) {
+		const {
+			spring_list,
+		} = this;
+
+		let spring = spring_list.next;
 		while (spring) {
 			const { i, j } = spring;
 
@@ -477,6 +496,24 @@ export class Jello implements IDrawable, IPower {
 				spring.unit_direction_to_j = dv.mul(1 / length);
 			}
 
+			spring = spring.next;
+		}
+	}
+
+	private updateSoftSpringsRestLength() {
+		const {
+			particles,
+			r_inv,
+			compress_speed,
+			compress_treshold,
+			stretch_speed,
+			stretch_treshold,
+			spring_list,
+		} = this;
+
+		let spring = spring_list.next;
+		while (spring) {
+			const { i } = spring;
 
 			if (particles[i].pt_state === Sticky) {
 				const spring_length = spring.rest_length;
@@ -516,6 +553,22 @@ export class Jello implements IDrawable, IPower {
 			}
 		}
 		
+		/*
+		let s = 0;
+		for (const particle of particles) {
+			s += particle.body.GetPosition().x;
+		}
+
+		s /= particles.length;
+
+		for (const particle of particles) {
+			new Vector((particle.body.GetPosition().x - s) / 1000, 0)
+				.asB2D(Box2D, v => {
+					particle.body.ApplyForceToCenter(v, true);
+				});
+		}
+		*/
+
 		/*	
 		for (const particle of particles) {
 			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
