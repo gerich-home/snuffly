@@ -245,8 +245,6 @@ export class Jello implements IDrawable, IPower {
 		activeChanged ||= this.removeTooStretchedHardSprings();
 		activeChanged ||= this.addNewSprings(neighborsData);
 		
-		const springsPower = this.getSpringsPower();
-
 		if (activeChanged) {
 			if (jelloState) {
 				const groups: number[][] = [];
@@ -323,7 +321,7 @@ export class Jello implements IDrawable, IPower {
 			}
 		}
 
-		this.applyPowers(neighborsData.neighbors, springsPower);
+		this.applyPowers(neighborsData.neighbors);
 
 		this.applyVelocityChanges(neighborsData.neighbors);
 	}
@@ -533,7 +531,7 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
-	private applyPowers(neighbors: Neighbor[][], springsPower: Vector[]) {
+	private applyPowers(neighbors: Neighbor[][]) {
 		const {
 			particles,
 			ptCount,
@@ -541,6 +539,7 @@ export class Jello implements IDrawable, IPower {
 		} = this;
 
 		const sphPower = this.getSPHPower(neighbors);
+		const springsPower = this.getSpringsPower();
 
 		for (let i = 0; i < ptCount; i++) {
 			const dv = springsPower[i].add(sphPower[i]);
