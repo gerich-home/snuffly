@@ -17,7 +17,7 @@ export class TestLevel {
 		Box2D: Box2D
 	) {
 		this.world = this.createBox2DWorld(Box2D);
-		const jello = this.createJello(Box2D, this.world, 100, 20, 8);
+		const jello = this.createJello(Box2D, this.world, 400, 20, 8);
 		const cmCalc = new CMCalculator(jello.particles);
 
 		this.drawables = [
@@ -51,7 +51,7 @@ export class TestLevel {
 		*/
 	}
 
-	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, b2r: number = 1, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 200, ymin: number = 0, xmax: number = 350, ymax: number = 200): Jello {
+	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, b2r: number = 1, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 0, ymin: number = 0, xmax: number = 500, ymax: number = 300): Jello {
 		const jellopt: Body[] = [];
 
 
