@@ -245,7 +245,7 @@ export class Jello implements IDrawable, IPower {
 		activeChanged ||= this.removeTooStretchedHardSprings();
 		activeChanged ||= this.addNewSprings(neighborsData);
 		
-		if (activeChanged) {
+		if (false && activeChanged) {
 			if (jelloState) {
 				const groups: number[][] = [];
 				const groupid = particles.map(() => 0);
@@ -394,6 +394,10 @@ export class Jello implements IDrawable, IPower {
 			spring_list,
 		} = this;
 
+		const strong_spring_particleCount = 5;
+		const strong_spring_max_length = 4 * r;
+		const weak_spring_max_length = 2 * r;
+
 		let activeChanged = false;
 		let spring = spring_list.next;
 		let prev = spring_list;
@@ -404,7 +408,7 @@ export class Jello implements IDrawable, IPower {
 			const current_length = spring.current_length;
 
 			if (particle_i.pt_state === Elastic) {
-				if ((current_length > 4 * r) || ((current_length > 2 * r) && ((particle_i.pt_springs < 5) || (particle_j.pt_springs < 5)))) {
+				if ((current_length > strong_spring_max_length) || ((current_length > weak_spring_max_length) && ((particle_i.pt_springs < strong_spring_particleCount) || (particle_j.pt_springs < strong_spring_particleCount)))) {
 					prev.next = spring.next;
 					particle_i.spring_ij.delete(spring.j);
 					spring = prev.next;
@@ -509,6 +513,9 @@ export class Jello implements IDrawable, IPower {
 			spring_list,
 		} = this;
 
+		const stretch_speed_div_r = r_inv * stretch_speed;
+		const compress_speed_div_r = r_inv * compress_speed;
+
 		let spring = spring_list.next;
 		while (spring) {
 			const { i } = spring;
@@ -518,11 +525,11 @@ export class Jello implements IDrawable, IPower {
 				const distance_from_rest = spring.current_length - spring_length;
 				const current_stretch_treshold = spring_length * stretch_treshold;
 				if (distance_from_rest > current_stretch_treshold) {
-					spring.rest_length += spring_length * r_inv * stretch_speed * (distance_from_rest - current_stretch_treshold);
+					spring.rest_length += spring_length * stretch_speed_div_r * (distance_from_rest - current_stretch_treshold);
 				} else {
 					const current_compress_treshold = -spring_length * compress_treshold;
 					if (distance_from_rest < current_compress_treshold) {
-						spring.rest_length += spring_length * r_inv * compress_speed * (distance_from_rest - current_compress_treshold);
+						spring.rest_length += spring_length * compress_speed_div_r * (distance_from_rest - current_compress_treshold);
 					}
 				}
 			}
@@ -758,11 +765,6 @@ export class Jello implements IDrawable, IPower {
 
 				for (let cj = 0; cj < ci; cj++) {
 					const j = cell[cj];
-					if (visited_i.has(j)) {
-						continue;
-					}
-
-					visited_i.add(j);
 
 					const position_j = positions[j];
 					const dx = position_j.x - position_i.x;
@@ -774,6 +776,12 @@ export class Jello implements IDrawable, IPower {
 					if (dy > r || dy < -r) {
 						continue;
 					}
+
+					if (visited_i.has(j)) {
+						continue;
+					}
+
+					visited_i.add(j);
 
 					const direction_to_j = new Vector(dx, dy);
 
