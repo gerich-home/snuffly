@@ -4,7 +4,9 @@ import { Jello } from "./Jello";
 import { IDrawable } from "./core/IDrawable";
 import { IPower } from "./core/IPower";
 
-const pixelScale = 30;
+const b2r = 8;
+const width = 400;
+const height = 300;
 
 export class TestLevel {
 	readonly world: World;
@@ -17,8 +19,8 @@ export class TestLevel {
 		Box2D: Box2D
 	) {
 		this.world = this.createBox2DWorld(Box2D);
-		const jello = this.createJello(Box2D, this.world, 400, 20, 8);
-		const cmCalc = new CMCalculator(jello.particles);
+		const jello = this.createJello(Box2D, this.world, 200, 20);
+		//const cmCalc = new CMCalculator(jello.particles);
 
 		this.drawables = [
 			jello
@@ -26,7 +28,7 @@ export class TestLevel {
 
 		this.powers = [
 			jello,
-			cmCalc,
+			//cmCalc,
 			//SG addPower(new KeyboardPower(jello,cmCalc,container,0.5*0.01,0.01,0.1*0.01,0.1*0.01,0.12*0.01*pixelScale,0.3*0.01*pixelScale,0.3*0.01*pixelScale));
 		];
 
@@ -51,7 +53,7 @@ export class TestLevel {
 		*/
 	}
 
-	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, b2r: number = 1, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 0, ymin: number = 0, xmax: number = 500, ymax: number = 300): Jello {
+	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 0, ymin: number = 0, xmax: number = width, ymax: number = height): Jello {
 		const jellopt: Body[] = [];
 
 
@@ -63,8 +65,8 @@ export class TestLevel {
 			const bodyDef = new Box2D.b2BodyDef();
 			bodyDef.fixedRotation = true;
 			//bodyDef.userData = ((unumber(Math.random() * 2) === 0) ? bmp1 : bmp2);
-			bodyDef.position.x = xmin + (xmax - xmin) * Math.random();
-			bodyDef.position.y = ymin + (ymax - ymin) * Math.random();
+			bodyDef.position.x = b2r + (width - 2 * b2r) * Math.random();
+			bodyDef.position.y = b2r + (height - 2 * b2r) * Math.random();
 			bodyDef.type = 2;
 
 			const circleDef = new Box2D.b2CircleShape();
@@ -88,7 +90,7 @@ export class TestLevel {
 
 	// ========================================================== //
 	private createBox2DWorld(Box2D: Box2D): World {
-		const gravity = new Box2D.b2Vec2(0.0, 0.2 * pixelScale);
+		const gravity = new Box2D.b2Vec2(0.0, 6);
 
 		const world = new Box2D.b2World(gravity);
 
@@ -96,23 +98,62 @@ export class TestLevel {
 
 		let i: number;
 
-		//Земля
-		const bodyDef = new Box2D.b2BodyDef();
-		bodyDef.position.Set(10 * pixelScale, 15 * pixelScale);
-		//bodyDef.userData = new Ground();
-		//bodyDef.userData.width = 512 * 3//2 * 30 * pixelScale; 
-		//bodyDef.userData.height = 256//2 * 3 * pixelScale; 
-		//bodyDef.userData.x = 10 * pixelScale;
-		//bodyDef.userData.y = 15 * pixelScale;
-		//container.addChild(bodyDef.userData);
-		const boxDef = new Box2D.b2PolygonShape();
-		boxDef.SetAsBox(256 * 3/*30*pixelScale*/, 128/*3*pixelScale*/);
-		const boxFixtureDef = new Box2D.b2FixtureDef();
-		boxFixtureDef.shape = boxDef;
-		boxFixtureDef.friction = 0.5;
-		boxFixtureDef.density = 0;
-		const body = world.CreateBody(bodyDef);
-		body.CreateFixture(boxFixtureDef);
+		const wall_size = 10;
+		
+		{
+			//Земля
+			const bodyDef = new Box2D.b2BodyDef();
+			const boxDef = new Box2D.b2PolygonShape();
+			bodyDef.position.Set(-wall_size, -wall_size);
+			boxDef.SetAsBox(wall_size, height + 2 * wall_size);
+			const boxFixtureDef = new Box2D.b2FixtureDef();
+			boxFixtureDef.shape = boxDef;
+			boxFixtureDef.friction = 0.5;
+			boxFixtureDef.density = 0;
+			const body = world.CreateBody(bodyDef);
+			body.CreateFixture(boxFixtureDef);
+		}
+		{
+			//Земля
+			const bodyDef = new Box2D.b2BodyDef();
+			const boxDef = new Box2D.b2PolygonShape();
+			bodyDef.position.Set(-wall_size, -wall_size);
+			boxDef.SetAsBox(width + 2 * wall_size, wall_size);
+			const boxFixtureDef = new Box2D.b2FixtureDef();
+			boxFixtureDef.shape = boxDef;
+			boxFixtureDef.friction = 0.5;
+			boxFixtureDef.density = 0;
+			const body = world.CreateBody(bodyDef);
+			body.CreateFixture(boxFixtureDef);
+		}
+		
+		{
+			//Земля
+			const bodyDef = new Box2D.b2BodyDef();
+			const boxDef = new Box2D.b2PolygonShape();
+			bodyDef.position.Set(-wall_size, height);
+			boxDef.SetAsBox(width + 2 * wall_size, wall_size);
+			const boxFixtureDef = new Box2D.b2FixtureDef();
+			boxFixtureDef.shape = boxDef;
+			boxFixtureDef.friction = 0.5;
+			boxFixtureDef.density = 0;
+			const body = world.CreateBody(bodyDef);
+			body.CreateFixture(boxFixtureDef);
+		}
+		
+		{
+			//Земля
+			const bodyDef = new Box2D.b2BodyDef();
+			const boxDef = new Box2D.b2PolygonShape();
+			bodyDef.position.Set(width, -wall_size);
+			boxDef.SetAsBox(wall_size, height + 2 * wall_size);
+			const boxFixtureDef = new Box2D.b2FixtureDef();
+			boxFixtureDef.shape = boxDef;
+			boxFixtureDef.friction = 0.5;
+			boxFixtureDef.density = 0;
+			const body = world.CreateBody(bodyDef);
+			body.CreateFixture(boxFixtureDef);
+		}
 
 		// SG
 		// bodyDef = new b2BodyDef();
