@@ -101,7 +101,7 @@ export class Jello implements IDrawable, IPower {
 		this.visible = visible;
 
 		this.spring_list = new Spring(-1, -1, null, Vector.zero, -1, -1);
-		
+
 		this.offsetX = 0;
 		this.offsetY = 0;
 
@@ -239,12 +239,12 @@ export class Jello implements IDrawable, IPower {
 
 		this.updateSpringsLengthsAndDirections(neighborsData, positions);
 		this.updateSoftSpringsRestLength();
-		
+
 		let activeChanged = false;
 		activeChanged ||= this.removeTooStretchedSoftSprings();
 		activeChanged ||= this.removeTooStretchedHardSprings();
 		activeChanged ||= this.addNewSprings(neighborsData);
-		
+
 		if (false && activeChanged) {
 			if (jelloState) {
 				const groups: number[][] = [];
@@ -549,16 +549,11 @@ export class Jello implements IDrawable, IPower {
 		const springsPower = this.getSpringsPower();
 
 		for (let i = 0; i < ptCount; i++) {
-			const dv = springsPower[i].add(sphPower[i]);
-			const d = dv.length;
+			const power = springsPower[i].add(sphPower[i]);
 			const body = particles[i].body;
-			const p = (d > 2) ? dv.mul(2 / d) : ((d > 0.09) ? dv : null);
-
-			if (p) {
-				p.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
-			}
+			power.asB2D(Box2D, v => body.ApplyForceToCenter(v, true));
 		}
-		
+
 		/*
 		let s = 0;
 		for (const particle of particles) {
@@ -734,6 +729,7 @@ export class Jello implements IDrawable, IPower {
 
 	private getNeighborsData(positions: Vector[]) {
 		const {
+			ptCount,
 			particles,
 			r,
 			r_inv,
@@ -744,69 +740,66 @@ export class Jello implements IDrawable, IPower {
 		const min_neighbor_distance = 0.01;
 		const min_neighbor_distance_squared = min_neighbor_distance * min_neighbor_distance;
 
-		const rows = this.getRows(positions);
-
 		const neighbors: NeighborsData = {
 			neighbors: particles.map(() => []),
 			neighbors_map: particles.map(() => new Map())
 		};
 
-		const visited = particles.map(() => new Set<number>());
+		const pp = positions.map((p, index) => ({ p, index })).slice().sort((a, b) => a.p.x - b.p.x);
 
-		rows.forEach(row => row.forEach(cell => {
-			const cl = cell.length;
-			for (let ci = 1; ci < cl; ci++) {
-				const i = cell[ci];
+		for (let a = 0; a < ptCount; a++) {
+			const pp_a = pp[a];
+			const { x: x_a, y: y_a } = pp_a.p;
+			const index_a = pp_a.index;
+			const x_up_a = x_a + r;
+			const y_low_a = y_a - r;
+			const y_up_a = y_a + r;
+
+			for (let b = a + 1; b < ptCount; b++) {
+				const pp_b = pp[b];
+				const { x: x_b, y: y_b } = pp_b.p;
+				
+				if (x_b > x_up_a) {
+					break;
+				}
+				
+				if (y_b < y_low_a || y_b > y_up_a) {
+					continue;
+				}
+				
+				const index_b = pp_b.index;
+				const i = index_a < index_b ? index_a : index_b;
+				const j = index_a < index_b ? index_b : index_a;
+				
 				const position_i = positions[i];
+				const position_j = positions[j];
 
-				const visited_i = visited[i];
 				const neighbors_i = neighbors.neighbors[i];
 				const indices_i = neighbors.neighbors_map[i];
+				
+				const direction_to_j = position_j.sub(position_i);
 
-				for (let cj = 0; cj < ci; cj++) {
-					const j = cell[cj];
-
-					const position_j = positions[j];
-					const dx = position_j.x - position_i.x;
-					if (dx > r || dx < -r) {
-						continue;
-					}
-
-					const dy = position_j.y - position_i.y;
-					if (dy > r || dy < -r) {
-						continue;
-					}
-
-					if (visited_i.has(j)) {
-						continue;
-					}
-
-					visited_i.add(j);
-
-					const direction_to_j = new Vector(dx, dy);
-
-					const distance_between_particles_squared = direction_to_j.length2;
-					if (distance_between_particles_squared > r2 || distance_between_particles_squared < min_neighbor_distance_squared) {
-						continue;
-					}
-
-					const distance_between_particles = Math.sqrt(distance_between_particles_squared);
-					const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
-					const q1 = 1 - distance_between_particles * r_inv;
-
-					const neighbor = {
-						j,
-						distance_between_particles,
-						unit_direction: unit_direction_to_j,
-						q1,
-						q2: q1 * q1,
-					};
-
-					neighbors_i.push(neighbor);
-					indices_i.set(j, neighbor);
+				const distance_between_particles_squared = direction_to_j.length2;
+				if (distance_between_particles_squared > r2 || distance_between_particles_squared < min_neighbor_distance_squared) {
+					continue;
 				}
+
+				const distance_between_particles = Math.sqrt(distance_between_particles_squared);
+				const unit_direction_to_j = direction_to_j.mul(1 / distance_between_particles);
+				const q1 = 1 - distance_between_particles * r_inv;
+
+				const neighbor = {
+					j,
+					distance_between_particles,
+					unit_direction: unit_direction_to_j,
+					q1,
+					q2: q1 * q1,
+				};
+
+				neighbors_i.push(neighbor);
+				indices_i.set(j, neighbor);
 			}
-		}));
+		}
 
 		return neighbors;
 	}
