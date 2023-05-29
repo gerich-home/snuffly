@@ -804,50 +804,6 @@ export class Jello implements IDrawable, IPower {
 		return neighbors;
 	}
 
-	private getRows(positions: Vector[]) {
-		const {
-			ptCount,
-			r_inv_half
-		} = this;
-
-		const rows = new Map<number, Map<number, number[]>>();
-
-		for (let i = 0; i < ptCount; i++) {
-			const pf = positions[i].mul(r_inv_half);
-
-			const s1 = Math.floor(pf.x);
-			const q1 = Math.floor(pf.y);
-
-			const addToRow = function (q: number) {
-				let row = rows.get(q);
-				if (!row) {
-					row = new Map<number, number[]>();
-					rows.set(q, row);
-				}
-
-				addToCell(s1);
-				addToCell(s1 + 1);
-				addToCell(s1 + 2);
-
-				function addToCell(s: number) {
-					let cell = row!.get(s);
-					if (!cell) {
-						cell = [];
-						row!.set(s, cell);
-					}
-
-					cell.push(i);
-				}
-			};
-
-			addToRow(q1);
-			addToRow(q1 + 1);
-			addToRow(q1 + 2);
-		}
-
-		return rows;
-	}
-
 	private getPositions() {
 		return this.particles.map(particle => Vector.fromB2D(particle.body.GetPosition()));
 	}
