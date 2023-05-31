@@ -77,8 +77,7 @@ export type Particle = {
 	pt_springs: number; //Число связей у частицы
 	pt_state: ParticleState;
 
-	groupqueue: number; //Очередь для выделения компоненты связности
-	activeGroup: boolean; //Входит ли i-ая точка в активный кусок желе?
+	group: number; //Входит ли i-ая точка в активный кусок желе?
 };
 
 //Соседи i-ой частицы с номерами меньше i
