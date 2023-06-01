@@ -70,14 +70,14 @@ export enum ParticleState {
 };
 
 export type Particle = {
-	readonly body: Body; //Частицы желе
+	readonly body: Body;
 	readonly index: number;
-	readonly spring_ij: Map<number, (null | Spring)>; //Связь между частицами i и j
+	readonly spring_ij: Map<number, Spring>;
 
-	pt_springs: number; //Число связей у частицы
+	pt_springs: number;
 	pt_state: ParticleState;
 
-	group: number; //Входит ли i-ая точка в активный кусок желе?
+	group: Set<number>;
 };
 
 //Соседи i-ой частицы с номерами меньше i
