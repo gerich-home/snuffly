@@ -75,9 +75,8 @@ export type Particle = {
 	readonly spring_ij: Map<number, Spring>;
 
 	pt_springs: number;
-	pt_state: ParticleState;
 
-	group: Set<number>;
+	group: ParticleGroup;
 };
 
 //Соседи i-ой частицы с номерами меньше i
@@ -107,3 +106,14 @@ export class Spring {
 	) {
 	}
 }
+
+export type ParticleGroup = {
+	particles: Set<number>;
+	state: {
+		type: ParticleState;
+		
+		//Состояние желе
+		jelloState: boolean;						//Желе/жидкость
+		frozen: boolean;							//Можно ли менять длину связей и добавлять новые?
+	};
+};

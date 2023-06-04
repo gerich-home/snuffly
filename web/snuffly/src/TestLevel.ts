@@ -2,11 +2,11 @@
 import { CMCalculator } from "./CMCalculator";
 import { Jello } from "./Jello";
 import { IDrawable } from "./core/IDrawable";
-import { IPower } from "./core/IPower";
+import { Controls, IPower } from "./core/IPower";
 
 const b2r = 8;
-const width = 400;
-const height = 300;
+const width = 550;
+const height = 415;
 
 export class TestLevel {
 	readonly world: World;
@@ -244,9 +244,9 @@ export class TestLevel {
 		return world;
 	}
 
-	step(dt: number): void {
+	step(dt: number, controls: Controls): void {
 		for (const power of this.powers) {
-			power.applyPower();
+			power.applyPower(controls);
 		}
 
 		this.world.Step(dt, this.velocityIterations, this.positionIterations);
