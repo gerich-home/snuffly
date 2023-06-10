@@ -36,6 +36,7 @@ jobs:
     - run: npm run build
       env:
           CI: false # ignore warnings
+          PUBLIC_URL: /snuffly
     - name: Setup Pages
       uses: actions/configure-pages@v3
     - name: Upload artifact
