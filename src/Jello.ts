@@ -86,7 +86,14 @@ export class Jello implements IDrawable, IPower {
 
 		this.treshold = treshold;
 
-		this.spring_list = new Spring(-1, -1, null, Vector.zero, -1, -1);
+		this.spring_list = {
+			i: -1,
+			j: -1,
+			next: null,
+			unit_direction_to_j: Vector.zero,
+			current_length: -1,
+			rest_length: -1
+		};
 
 		this.particles = particles.map<Particle>((body, i) => ({
 			index: i,
@@ -341,7 +348,6 @@ export class Jello implements IDrawable, IPower {
 			ptCount,
 			spring_list,
 			max_springs,
-			active_group,
 		} = this;
 
 		let needRecalcGroups = false;
@@ -350,7 +356,6 @@ export class Jello implements IDrawable, IPower {
 			const neighbors_i = neighborsData.neighbors[i];
 			const spring_ij_i = particle_i.spring_ij;
 			const group_i = particle_i.group;
-			const activeGroup_i = group_i === active_group;
 
 			let pt_springs_i = particle_i.pt_springs;
 			let pt_state_i = particle_i.group.state;
@@ -366,7 +371,14 @@ export class Jello implements IDrawable, IPower {
 					//(!pt_state_i.frozen && pt_state_i.jelloState && (activeGroup_i || (particle_j.group === active_group))) || //слипание двух активных кусков/слипание активного и неактивного
 					((pt_state_i.type === Sticky) && (particle_j.group.state.type === Sticky))) { //слипание двух неактивных желе
 					if (!spring_ij_i.has(j) && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
-						const spring = new Spring(i, j, spring_list.next, unit_direction, distance_between_particles, distance_between_particles);
+						const spring: Spring = {
+							i,
+							j,
+							next: spring_list.next,
+							unit_direction_to_j: unit_direction,
+							current_length: distance_between_particles,
+							rest_length: distance_between_particles,
+						};
 						spring_ij_i.set(j, spring);
 						spring_list.next = spring;
 						pt_springs_i++;

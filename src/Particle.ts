@@ -95,17 +95,14 @@ export type Neighbor = {
 
 
 //Пластичная связь
-export class Spring {
-	constructor(
-		public readonly i: number,
-		public readonly j: number,
-		public next: Spring | null,
-		public unit_direction_to_j: Vector,
-		public rest_length: number,
-		public current_length: number
-	) {
-	}
-}
+export type Spring = {
+	readonly i: number;
+	readonly j: number;
+	next: Spring | null;
+	unit_direction_to_j: Vector;
+	rest_length: number;
+	current_length: number;
+};
 
 export type ParticleGroup = {
 	particles: Set<number>;
