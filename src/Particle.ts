@@ -110,10 +110,10 @@ export class Spring {
 export type ParticleGroup = {
 	particles: Set<number>;
 	state: {
-		type: ParticleState;
+		readonly type: ParticleState;
 		
 		//Состояние желе
-		jelloState: boolean;						//Желе/жидкость
-		frozen: boolean;							//Можно ли менять длину связей и добавлять новые?
+		readonly jelloState: boolean;						//Желе/жидкость
+		readonly frozen: boolean;							//Можно ли менять длину связей и добавлять новые?
 	};
 };

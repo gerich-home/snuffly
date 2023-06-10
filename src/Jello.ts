@@ -144,11 +144,17 @@ export class Jello implements IDrawable, IPower {
 			}
 
 			if (controls.turnJello && !controls.turnElastic && !controls.turnFluid) {
-				this.active_group.state.type = Sticky;
+				this.active_group.state = {
+					...this.active_group.state,
+					type: Sticky
+				};
 			}
 
 			if (!controls.turnJello && controls.turnElastic && !controls.turnFluid) {
-				this.active_group.state.type = Elastic;
+				this.active_group.state = {
+					...this.active_group.state,
+					type: Elastic
+				};
 			}
 		}
 
@@ -365,8 +371,14 @@ export class Jello implements IDrawable, IPower {
 						spring_list.next = spring;
 						pt_springs_i++;
 						particle_j.pt_springs++;
-						particle_j.group.state.type = Sticky;
-						pt_state_i.type = Sticky;
+						particle_j.group.state = {
+							...particle_j.group.state,
+							type: Sticky
+						};
+						pt_state_i = {
+							...pt_state_i,
+							type: Sticky
+						};
 						if (group_i !== particle_j.group) {
 							groupsToRecalc.add(group_i);
 							groupsToRecalc.add(particle_j.group);
