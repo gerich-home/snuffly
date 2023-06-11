@@ -138,16 +138,17 @@ export class Jello implements IDrawable, IPower {
 		this.applyJelloPowers(neighborsData.neighbors);
 
 		if (controls) {
-			if (controls.spins || controls.touch) {
+			if (controls.spins) {
 				this.applySpinningPower(positions);
 			}
 
 			if ((controls.left && !controls.right) || (controls.right && !controls.left)
-			|| (controls.up && !controls.down) || (controls.down && !controls.up)) {
+			|| (controls.up && !controls.down) || (controls.down && !controls.up)
+			|| (controls.gx !== 0 || controls.gy !== 0)) {
 				this.applyPowerToActiveGroup(mul({
-					x: controls.left ? -1 : (controls.right ? 1 : 0),
-					y: controls.up ? -1 : (controls.down ? 1 : 0),
-				}, 0.1));
+					x: (controls.left ? -1 : (controls.right ? 1 : 0)) - controls.gx / 9.8,
+					y: controls.up ? -1 : (controls.down ? 1 : 0) + controls.gy / 9.8,
+				}, 0.2));
 			}
 
 			if (controls.turnJello && !controls.turnElastic && !controls.turnFluid) {

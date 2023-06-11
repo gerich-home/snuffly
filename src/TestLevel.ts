@@ -14,12 +14,13 @@ export class TestLevel {
 	readonly positionIterations = 2;
 
 	constructor(
-		Box2D: Box2D,
+		public readonly Box2D: Box2D,
 		public readonly width: number,
-		public readonly height: number
+		public readonly height: number,
+		public readonly isMobile: boolean
 	) {
 		this.world = this.createBox2DWorld(Box2D);
-		const jello = (width * height < 800 * 800) ?
+		const jello = isMobile ?
 			this.createJello(Box2D, this.world, 100, 20) :
 			this.createJello(Box2D, this.world, 200, 40);
 		//const cmCalc = new CMCalculator(jello.particles);
@@ -92,7 +93,9 @@ export class TestLevel {
 
 	// ========================================================== //
 	private createBox2DWorld(Box2D: Box2D): World {
-		const gravity = new Box2D.b2Vec2(0.0, 6);
+		const gravity = this.isMobile ?
+			new Box2D.b2Vec2(0, 0) :
+			new Box2D.b2Vec2(0, 6);
 
 		const world = new Box2D.b2World(gravity);
 
@@ -101,7 +104,7 @@ export class TestLevel {
 		let i: number;
 
 		const wall_size = 10;
-		
+
 		{
 			//Земля
 			const bodyDef = new Box2D.b2BodyDef();
@@ -128,7 +131,7 @@ export class TestLevel {
 			const body = world.CreateBody(bodyDef);
 			body.CreateFixture(boxFixtureDef);
 		}
-		
+
 		{
 			//Земля
 			const bodyDef = new Box2D.b2BodyDef();
@@ -142,7 +145,7 @@ export class TestLevel {
 			const body = world.CreateBody(bodyDef);
 			body.CreateFixture(boxFixtureDef);
 		}
-		
+
 		{
 			//Земля
 			const bodyDef = new Box2D.b2BodyDef();

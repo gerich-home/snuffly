@@ -8,6 +8,7 @@ declare var GravitySensor: typeof GravitySensorType;
 
 const width = window.innerWidth;
 const height = window.innerHeight;
+const isMobile = (width * height < 800 * 800);
 
 function App() {
 
@@ -20,7 +21,8 @@ function App() {
   const [turnJello, setTurnJello] = useState(false);
   const [turnFluid, setTurnFluid] = useState(false);
   const [touch, setTouch] = useState(false);
-  const [reading, setReading] = useState('');
+  const [gx, setGx] = useState(0);
+  const [gy, setGy] = useState(0);
 
   const onTouchStart = () => {
     setTouch(true);
@@ -120,7 +122,8 @@ function App() {
   useEffect(() => {
     const sensor = new GravitySensor({ frequency: 60 });
     const listener = () => {
-      setReading(`x: ${sensor.x}\ny: ${sensor.y}\ny: ${sensor.z}`);
+      setGx(sensor.x);
+      setGy(sensor.y);
     };
 
     sensor.addEventListener("reading", listener);
@@ -141,7 +144,7 @@ function App() {
       return;
     }
 
-    const testLevel = new TestLevel(Box2D, width, height);
+    const testLevel = new TestLevel(Box2D, width, height, isMobile);
     setTestLevel(testLevel);
   }, [Box2D]);
 
@@ -158,7 +161,7 @@ function App() {
     ctx.fillStyle = '#000000';
 
     const controls = {
-      spins,
+      spins: spins || touch,
       down,
       left,
       right,
@@ -166,7 +169,8 @@ function App() {
       turnFluid,
       turnElastic,
       turnJello,
-      touch,
+      gx,
+      gy,
     };
 
     for(let i = 0; i < 10; i++) {
@@ -174,10 +178,8 @@ function App() {
     }
     testLevel.draw(ctx);
 
-    ctx.strokeText(reading, 0, 100);
-
     ctx.restore();
-  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch, reading]);
+  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy]);
 
 
   useEffect(() => {
