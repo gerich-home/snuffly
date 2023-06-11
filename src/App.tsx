@@ -18,11 +18,11 @@ function App() {
   const [turnFluid, setTurnFluid] = useState(false);
   const [touch, setTouch] = useState(false);
 
-  const onMouseDown = () => {
+  const onTouchStart = () => {
     setTouch(true);
   };
 
-  const onMouseUp = () => {
+  const onTouchEnd = () => {
     setTouch(false);
   };
 
@@ -98,18 +98,18 @@ function App() {
   
   
   useEffect(() => {
-    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("touchstart", onTouchStart, false);
 
     return () => {
-      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("touchstart", onTouchStart, false);
     };
   }, []);
   
   useEffect(() => {
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("touchend", onTouchEnd, false);
 
     return () => {
-      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("touchend", onTouchEnd, false);
     };
   }, []);
 
