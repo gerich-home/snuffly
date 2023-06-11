@@ -143,12 +143,20 @@ export class Jello implements IDrawable, IPower {
 			}
 
 			if ((controls.left && !controls.right) || (controls.right && !controls.left)
-			|| (controls.up && !controls.down) || (controls.down && !controls.up)
-			|| (controls.gx !== 0 || controls.gy !== 0)) {
-				this.applyPowerToActiveGroup(mul({
-					x: (controls.left ? -1 : (controls.right ? 1 : 0)) - controls.gx / 9.8,
-					y: controls.up ? -1 : (controls.down ? 1 : 0) + controls.gy / 9.8,
-				}, 0.2));
+				|| (controls.up && !controls.down) || (controls.down && !controls.up)
+				|| (controls.gx !== 0 || controls.gy !== 0)) {
+				this.applyPowerToActiveGroup(
+					add(
+						mul({
+							x: (controls.left ? -1 : (controls.right ? 1 : 0)),
+							y: controls.up ? -1 : (controls.down ? 1 : 0),
+						}, 0.2),
+						mul({
+							x: -controls.gx,
+							y: controls.gy
+						}, 6 / 9.8)
+					)
+				);
 			}
 
 			if (controls.turnJello && !controls.turnElastic && !controls.turnFluid) {
@@ -467,7 +475,7 @@ export class Jello implements IDrawable, IPower {
 			spring = spring.next;
 		}
 	}
-	
+
 	private applyJelloPowers(neighbors: Neighbor[][]) {
 		const {
 			particles,
@@ -477,7 +485,7 @@ export class Jello implements IDrawable, IPower {
 
 		const sphPower = this.getSPHPower(neighbors);
 		const springsPower = this.getSpringsPower();
-		
+
 		for (let i = 0; i < ptCount; i++) {
 			const power = add(springsPower[i], sphPower[i]);
 			const body = particles[i].body;
@@ -498,15 +506,15 @@ export class Jello implements IDrawable, IPower {
 			if (particle.group !== active_group) {
 				continue;
 			}
-			
+
 			const d = sub(positions[particle.index], activeGroupCenter);
 
-			asB2D(Box2D, mul({x: -d.y, y: d.x}, 0.001), v => {
+			asB2D(Box2D, mul({ x: -d.y, y: d.x }, 0.001), v => {
 				particle.body.ApplyForceToCenter(v, true);
 			});
 		}
 	}
-	
+
 	private applyPowerToActiveGroup(power: Vector) {
 		const {
 			particles,
@@ -518,7 +526,7 @@ export class Jello implements IDrawable, IPower {
 			if (particle.group !== active_group) {
 				continue;
 			}
-			
+
 			asB2D(Box2D, power, v => {
 				particle.body.ApplyForceToCenter(v, true);
 			});
@@ -537,7 +545,7 @@ export class Jello implements IDrawable, IPower {
 			if (particle.group !== active_group) {
 				continue;
 			}
-			
+
 			activeGroupCenter = add(activeGroupCenter, positions[particle.index]);
 			activeGroupPtCount++;
 		}
@@ -551,16 +559,16 @@ export class Jello implements IDrawable, IPower {
 			particles,
 			ptCount,
 		} = this;
-		
+
 		const { press, press_near } = this.getPress(neighbors);
-		
+
 		const result = particles.map(() => zero);
-		
+
 		for (let i = 0; i < ptCount; i++) {
 			const press_i = press[i];
 			const press_near_i = press_near[i];
 			const neighbors_i = neighbors[i];
-			
+
 			let delta_power_i = zero;
 
 			for (const neighbor of neighbors_i) {
@@ -568,19 +576,19 @@ export class Jello implements IDrawable, IPower {
 				const unit_direction = neighbor.unit_direction;
 				const press_j = press[j];
 				const press_near_j = press_near[j];
-				
+
 				const dn = (press_i + press_j) * neighbor.q1 +
-				(press_near_i + press_near_j) * neighbor.q2;
+					(press_near_i + press_near_j) * neighbor.q2;
 
 				const delta_power_ij = mul(unit_direction, dn);
 
 				delta_power_i = add(delta_power_i, delta_power_ij);
 				result[j] = add(result[j], delta_power_ij);
 			}
-			
+
 			result[i] = sub(result[i], delta_power_i);
 		}
-		
+
 		return result;
 	}
 
@@ -592,7 +600,7 @@ export class Jello implements IDrawable, IPower {
 		} = this;
 
 		const { ro, ro_near } = this.getRo(neighbors);
-		
+
 		const press = ro.map(ro_i => k * (ro_i - rest_density));
 		const press_near = ro_near.map(ro_near_i => k_near * ro_near_i);
 
@@ -610,10 +618,10 @@ export class Jello implements IDrawable, IPower {
 
 		const ro = particles.map(() => 0);
 		const ro_near = particles.map(() => 0);
-		
+
 		for (let i = 0; i < ptCount; i++) {
 			const neighbors_i = neighbors[i];
-			
+
 			let delta_ro_i = 0;
 			let delta_ro_near_i = 0;
 
@@ -625,7 +633,7 @@ export class Jello implements IDrawable, IPower {
 				const ro_ij = q2;
 				delta_ro_i += ro_ij;
 				ro[j] += ro_ij;
-				
+
 				const ro_near_ij = q2 * q1;
 				delta_ro_near_i += ro_near_ij;
 				ro_near[j] += ro_near_ij;
@@ -655,7 +663,7 @@ export class Jello implements IDrawable, IPower {
 
 		const velocities = this.getVelocities();
 		const delta_velocities = particles.map(() => zero);
-		
+
 		// calculate velocity changes
 		for (let i = 0; i < ptCount; i++) {
 			const velocity_i = velocities[i];
@@ -685,11 +693,11 @@ export class Jello implements IDrawable, IPower {
 			asB2D(Box2D, add(velocities[i], delta_velocities[i]), v => particles[i].body.SetLinearVelocity(v));
 		}
 	}
-	
+
 	private getVelocities() {
 		return this.particles.map(particle => fromB2D(particle.body.GetLinearVelocity()));
 	}
-	
+
 	private getNeighborsData(positions: Vector[]) {
 		const {
 			ptCount,
@@ -733,10 +741,10 @@ export class Jello implements IDrawable, IPower {
 				const index_b = pp_b.index;
 				const i = index_a < index_b ? index_a : index_b;
 				const j = index_a < index_b ? index_b : index_a;
-				
+
 				const position_i = positions[i];
 				const position_j = positions[j];
-				
+
 				const neighbors_i = neighbors.neighbors[i];
 				const indices_i = neighbors.neighbors_map[i];
 
@@ -758,12 +766,12 @@ export class Jello implements IDrawable, IPower {
 					q1,
 					q2: q1 * q1,
 				};
-				
+
 				neighbors_i.push(neighbor);
 				indices_i.set(j, neighbor);
 			}
 		}
-		
+
 		return neighbors;
 	}
 
@@ -797,7 +805,7 @@ export class Jello implements IDrawable, IPower {
 			ctx.ellipse(p.x, p.y, 2, 2, 0, 0, 2 * Math.PI);
 			ctx.stroke();
 		}
-		
+
 		// SG
 		// const bmp: BitmapData = canvas.bitmapData;
 		// const w: unumber = canvas.width;
@@ -813,7 +821,7 @@ export class Jello implements IDrawable, IPower {
 		// const r1: Rectangle = new Rectangle(0, 0, 2 * this.imageRadius, 2 * this.imageRadius);
 		// pnt = new Point(0, 0);
 		// for (i = 0; i < this.ptCount; i++) {
-			// 	p = particle.pt;
+		// 	p = particle.pt;
 		// 	pnt.x = particle.px - this.imageRadius + this.offsetX;
 		// 	pnt.y = particle.py - this.imageRadius + this.offsetY;
 		// 	bmp.copyPixels(p.GetUserData() as BitmapData, r1, pnt, null, null, true);
@@ -838,11 +846,11 @@ export class Jello implements IDrawable, IPower {
 		*/
 		//bmp.threshold(bmp,rect, new Point(0, 0), ">", 0,0xFF000000+_waterColor);
 		//bmp.colorTransform(rect,new ColorTransform(1,1,1,1,0,0,0,255));
-		
+
 
 		//SG bmp.unlock();
 	}
-	
+
 
 	// ========================================================== //
 	// function keyDown(event: KeyboardEvent): void {
@@ -859,10 +867,10 @@ export class Jello implements IDrawable, IPower {
 	// 		}
 	// 		else					//Переходим из воды в желе
 	// 		{
-		// 			frozen = false;
+	// 			frozen = false;
 	// 			new_state = 0;
 	// 		}
-	
+
 	// 		const dx: number;
 	// 		const dy: number;
 	// 		const vec1: b2Vec2;
@@ -880,7 +888,7 @@ export class Jello implements IDrawable, IPower {
 	// 		{
 	// 			spring = spring_list.next;
 	// 			while (spring) {
-		// 				i = spring.i;
+	// 				i = spring.i;
 	// 				j = spring.j;
 	// 				if (activeGroup[i] || activeGroup[j]) {
 	// 					vec1 = pt[i].GetPosition();
@@ -901,18 +909,18 @@ export class Jello implements IDrawable, IPower {
 	// 	}
 	// 	else if (event.keyCode === 69)		//становимся водичкой
 	// 	{
-		// 		if (jelloState)				//из желе в воду
-		// 		{
+	// 		if (jelloState)				//из желе в воду
+	// 		{
 	// 			frozen = false;
 
 	// 			const prev: Spring;
 	// 			spring = spring_list.next;
 	// 			prev = spring_list;
 	// 			while (spring) {
-		// 				i = spring.i;
-		// 				j = spring.j;
-		// 				if (activeGroup[i] || activeGroup[j]) {
-			// 					prev.next = spring.next;
+	// 				i = spring.i;
+	// 				j = spring.j;
+	// 				if (activeGroup[i] || activeGroup[j]) {
+	// 					prev.next = spring.next;
 	// 					spring_ij[i][j] = null;
 	// 					spring.next = spring_pool.next;
 	// 					spring_pool.next = spring;
@@ -939,14 +947,14 @@ export class Jello implements IDrawable, IPower {
 }
 
 
-		/*	
-		for (const particle of particles) {
-			new Vector(0, -0.06 * (Math.sin(cntr / 50)))
-				.asB2D(Box2D, v => {
-					particle.body.ApplyForceToCenter(v, true);
-				});
-		}
-		cntr++;
-		*/
+/*	
+for (const particle of particles) {
+	new Vector(0, -0.06 * (Math.sin(cntr / 50)))
+		.asB2D(Box2D, v => {
+			particle.body.ApplyForceToCenter(v, true);
+		});
+}
+cntr++;
+*/
 
 let cntr = 0;
