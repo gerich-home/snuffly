@@ -4,7 +4,7 @@
 
 
 export type Controls = {
-	spins: boolean;
+	spinPower: number;
 	left: boolean;
 	right: boolean;
 	down: boolean;

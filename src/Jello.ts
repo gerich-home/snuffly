@@ -138,8 +138,8 @@ export class Jello implements IDrawable, IPower {
 		this.applyJelloPowers(neighborsData.neighbors);
 
 		if (controls) {
-			if (controls.spins) {
-				this.applySpinningPower(positions);
+			if (controls.spinPower !== 0) {
+				this.applySpinningPower(positions, controls.spinPower);
 			}
 
 			if ((controls.left && !controls.right) || (controls.right && !controls.left)
@@ -157,7 +157,7 @@ export class Jello implements IDrawable, IPower {
 					mul({
 						x: -controls.gx,
 						y: controls.gy
-					}, 1 / 9.8)
+					}, 0.5 / 9.8)
 				);
 			}
 
@@ -495,7 +495,7 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
-	private applySpinningPower(positions: Vector[]) {
+	private applySpinningPower(positions: Vector[], spinPower: number) {
 		const {
 			particles,
 			Box2D,
@@ -511,7 +511,7 @@ export class Jello implements IDrawable, IPower {
 
 			const d = sub(positions[particle.index], activeGroupCenter);
 
-			asB2D(Box2D, mul({ x: -d.y, y: d.x }, 0.001), v => {
+			asB2D(Box2D, mul({ x: -d.y, y: d.x }, spinPower), v => {
 				particle.body.ApplyForceToCenter(v, true);
 			});
 		}

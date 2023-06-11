@@ -161,7 +161,7 @@ function App() {
     ctx.fillStyle = '#000000';
 
     const controls = {
-      spins: spins || touch,
+      spinPower: (spins || touch) ? 0.001 : 0,
       down,
       left,
       right,
