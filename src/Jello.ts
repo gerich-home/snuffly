@@ -793,7 +793,7 @@ export class Jello implements IDrawable, IPower {
 			const p = particle.body.GetPosition();
 			ctx.strokeStyle = (particle.group === active_group) ? 'red' : 'black';
 			ctx.beginPath();
-			ctx.ellipse(p.x, p.y, 1, 1, 0, 0, 2 * Math.PI);
+			ctx.ellipse(p.x, p.y, 2, 2, 0, 0, 2 * Math.PI);
 			ctx.stroke();
 		}
 		

@@ -1,8 +1,13 @@
+import './App.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBox2D } from './useBox2D';
 import { TestLevel } from './TestLevel';
 
+const width = window.innerWidth;
+const height = window.innerHeight;
+
 function App() {
+
   const [spins, setSpins] = useState(false);
   const [left, setLeft] = useState(false);
   const [right, setRight] = useState(false);
@@ -91,43 +96,44 @@ function App() {
       return;
     }
 
-    const testLevel = new TestLevel(Box2D);
+    const testLevel = new TestLevel(Box2D, width, height);
     setTestLevel(testLevel);
-  }, [Box2D]);
+  }, [Box2D, width, height]);
 
   const [nSteps, setNSteps] = useState(0);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const draw = useCallback((ctx: CanvasRenderingContext2D, deltaTime: number) => {
     if (!testLevel) {
       return;
     }
 
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.clearRect(0, 0, width, height);
 
     ctx.save();
-    ctx.scale(1.5, 1.5);
     ctx.fillStyle = '#000000';
 
+    const controls = {
+      spins,
+      down,
+      left,
+      right,
+      up,
+      turnFluid,
+      turnElastic,
+      turnJello,
+    };
+
     for(let i = 0; i < 10; i++) {
-      testLevel.step(deltaTime / 1000, {
-        spins,
-        down,
-        left,
-        right,
-        up,
-        turnFluid,
-        turnElastic,
-        turnJello,
-      });
+      testLevel.step(deltaTime / 1000, controls);
     }
     testLevel.draw(ctx);
 
     ctx.restore();
 
     setNSteps(nSteps + 1);
-  }, [testLevel, nSteps, spins, left, right, up, down, turnFluid, turnElastic, turnJello]);
+  }, [testLevel, nSteps, spins, left, right, up, down, turnFluid, turnElastic, turnJello, width, height]);
 
 
   useEffect(() => {
@@ -160,10 +166,15 @@ function App() {
     };
   }, [draw]);
 
+  useEffect(() => {
+    if(canvasRef.current) {
+      canvasRef.current.width = width;
+      canvasRef.current.height = height;
+    }
+  }, [canvasRef, width, height]);
+
   return (
-    <div className="App">
-      <canvas width={800} height={600} ref={canvasRef} />
-    </div>
+    <canvas ref={canvasRef} />
   );
 }
 

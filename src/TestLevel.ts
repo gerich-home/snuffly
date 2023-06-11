@@ -5,8 +5,6 @@ import { IDrawable } from "./core/IDrawable";
 import { Controls, IPower } from "./core/IPower";
 
 const b2r = 8;
-const width = 550;
-const height = 415;
 
 export class TestLevel {
 	readonly world: World;
@@ -16,7 +14,9 @@ export class TestLevel {
 	readonly positionIterations = 2;
 
 	constructor(
-		Box2D: Box2D
+		Box2D: Box2D,
+		public readonly width: number,
+		public readonly height: number
 	) {
 		this.world = this.createBox2DWorld(Box2D);
 		const jello = this.createJello(Box2D, this.world, 200, 20);
@@ -53,7 +53,7 @@ export class TestLevel {
 		*/
 	}
 
-	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 0, ymin: number = 0, xmax: number = width, ymax: number = height): Jello {
+	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 0, ymin: number = 0, xmax: number = this.width, ymax: number = this.height): Jello {
 		const jellopt: Body[] = [];
 
 
@@ -65,8 +65,8 @@ export class TestLevel {
 			const bodyDef = new Box2D.b2BodyDef();
 			bodyDef.fixedRotation = true;
 			//bodyDef.userData = ((unumber(Math.random() * 2) === 0) ? bmp1 : bmp2);
-			bodyDef.position.x = b2r + (width - 2 * b2r) * Math.random();
-			bodyDef.position.y = b2r + (height - 2 * b2r) * Math.random();
+			bodyDef.position.x = b2r + (this.width - 2 * b2r) * Math.random();
+			bodyDef.position.y = b2r + (this.height - 2 * b2r) * Math.random();
 			bodyDef.type = 2;
 
 			const circleDef = new Box2D.b2CircleShape();
@@ -105,7 +105,7 @@ export class TestLevel {
 			const bodyDef = new Box2D.b2BodyDef();
 			const boxDef = new Box2D.b2PolygonShape();
 			bodyDef.position.Set(-wall_size, -wall_size);
-			boxDef.SetAsBox(wall_size, height + 2 * wall_size);
+			boxDef.SetAsBox(wall_size, this.height + 2 * wall_size);
 			const boxFixtureDef = new Box2D.b2FixtureDef();
 			boxFixtureDef.shape = boxDef;
 			boxFixtureDef.friction = 0.5;
@@ -118,7 +118,7 @@ export class TestLevel {
 			const bodyDef = new Box2D.b2BodyDef();
 			const boxDef = new Box2D.b2PolygonShape();
 			bodyDef.position.Set(-wall_size, -wall_size);
-			boxDef.SetAsBox(width + 2 * wall_size, wall_size);
+			boxDef.SetAsBox(this.width + 2 * wall_size, wall_size);
 			const boxFixtureDef = new Box2D.b2FixtureDef();
 			boxFixtureDef.shape = boxDef;
 			boxFixtureDef.friction = 0.5;
@@ -131,8 +131,8 @@ export class TestLevel {
 			//Земля
 			const bodyDef = new Box2D.b2BodyDef();
 			const boxDef = new Box2D.b2PolygonShape();
-			bodyDef.position.Set(-wall_size, height);
-			boxDef.SetAsBox(width + 2 * wall_size, wall_size);
+			bodyDef.position.Set(-wall_size, this.height);
+			boxDef.SetAsBox(this.width + 2 * wall_size, wall_size);
 			const boxFixtureDef = new Box2D.b2FixtureDef();
 			boxFixtureDef.shape = boxDef;
 			boxFixtureDef.friction = 0.5;
@@ -145,8 +145,8 @@ export class TestLevel {
 			//Земля
 			const bodyDef = new Box2D.b2BodyDef();
 			const boxDef = new Box2D.b2PolygonShape();
-			bodyDef.position.Set(width, -wall_size);
-			boxDef.SetAsBox(wall_size, height + 2 * wall_size);
+			bodyDef.position.Set(this.width, -wall_size);
+			boxDef.SetAsBox(wall_size, this.height + 2 * wall_size);
 			const boxFixtureDef = new Box2D.b2FixtureDef();
 			boxFixtureDef.shape = boxDef;
 			boxFixtureDef.friction = 0.5;
