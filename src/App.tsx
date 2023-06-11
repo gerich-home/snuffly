@@ -2,6 +2,9 @@ import './App.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBox2D } from './useBox2D';
 import { TestLevel } from './TestLevel';
+import { type GravitySensor as GravitySensorType } from 'motion-sensors-polyfill';
+
+declare var GravitySensor: typeof GravitySensorType;
 
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -17,6 +20,7 @@ function App() {
   const [turnJello, setTurnJello] = useState(false);
   const [turnFluid, setTurnFluid] = useState(false);
   const [touch, setTouch] = useState(false);
+  const [reading, setReading] = useState('');
 
   const onTouchStart = () => {
     setTouch(true);
@@ -113,6 +117,21 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const sensor = new GravitySensor({ frequency: 60 });
+    const listener = () => {
+      setReading(`x: ${sensor.x}\ny: ${sensor.y}\ny: ${sensor.z}`);
+    };
+
+    sensor.addEventListener("reading", listener);
+    sensor.start();
+
+    return () => {
+      sensor.stop();
+      sensor.removeEventListener("reading", listener);
+    };
+  });
+
   const Box2D = useBox2D();
 
   const [testLevel, setTestLevel] = useState<TestLevel>();
@@ -155,8 +174,10 @@ function App() {
     }
     testLevel.draw(ctx);
 
+    ctx.strokeText(reading, 0, 100);
+
     ctx.restore();
-  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch]);
+  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch, reading]);
 
 
   useEffect(() => {

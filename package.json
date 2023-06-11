@@ -43,6 +43,7 @@
     ]
   },
   "devDependencies": {
+    "@types/motion-sensors-polyfill": "^0.3.1",
     "@types/react-helmet": "^6.1.6"
   }
 }
