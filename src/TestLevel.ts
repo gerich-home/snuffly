@@ -19,7 +19,7 @@ export class TestLevel {
 		public readonly height: number
 	) {
 		this.world = this.createBox2DWorld(Box2D);
-		const jello = this.createJello(Box2D, this.world, 200, 20);
+		const jello = this.createJello(Box2D, this.world, 200, 40);
 		//const cmCalc = new CMCalculator(jello.particles);
 
 		this.drawables = [

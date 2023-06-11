@@ -138,7 +138,7 @@ export class Jello implements IDrawable, IPower {
 		this.applyJelloPowers(neighborsData.neighbors);
 
 		if (controls) {
-			if (controls.spins) {
+			if (controls.spins || controls.touch) {
 				this.applySpinningPower(positions);
 			}
 

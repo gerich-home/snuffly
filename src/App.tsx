@@ -16,6 +16,15 @@ function App() {
   const [turnElastic, setTurnElastic] = useState(false);
   const [turnJello, setTurnJello] = useState(false);
   const [turnFluid, setTurnFluid] = useState(false);
+  const [touch, setTouch] = useState(false);
+
+  const onMouseDown = () => {
+    setTouch(true);
+  };
+
+  const onMouseUp = () => {
+    setTouch(false);
+  };
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.code === 'Space') {
@@ -86,6 +95,23 @@ function App() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
+  
+  
+  useEffect(() => {
+    window.addEventListener("mousedown", onMouseDown);
+
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+    };
+  }, []);
+  
+  useEffect(() => {
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   const Box2D = useBox2D();
 
@@ -98,9 +124,7 @@ function App() {
 
     const testLevel = new TestLevel(Box2D, width, height);
     setTestLevel(testLevel);
-  }, [Box2D, width, height]);
-
-  const [nSteps, setNSteps] = useState(0);
+  }, [Box2D]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -123,6 +147,7 @@ function App() {
       turnFluid,
       turnElastic,
       turnJello,
+      touch,
     };
 
     for(let i = 0; i < 10; i++) {
@@ -131,9 +156,7 @@ function App() {
     testLevel.draw(ctx);
 
     ctx.restore();
-
-    setNSteps(nSteps + 1);
-  }, [testLevel, nSteps, spins, left, right, up, down, turnFluid, turnElastic, turnJello, width, height]);
+  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch]);
 
 
   useEffect(() => {
@@ -171,7 +194,7 @@ function App() {
       canvasRef.current.width = width;
       canvasRef.current.height = height;
     }
-  }, [canvasRef, width, height]);
+  }, [canvasRef]);
 
   return (
     <canvas ref={canvasRef} />

@@ -12,4 +12,5 @@ export type Controls = {
 	turnFluid: boolean;
 	turnElastic: boolean;
 	turnJello: boolean;
+	touch: boolean;
 };
