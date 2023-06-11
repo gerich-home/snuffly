@@ -143,19 +143,21 @@ export class Jello implements IDrawable, IPower {
 			}
 
 			if ((controls.left && !controls.right) || (controls.right && !controls.left)
-				|| (controls.up && !controls.down) || (controls.down && !controls.up)
-				|| (controls.gx !== 0 || controls.gy !== 0)) {
+				|| (controls.up && !controls.down) || (controls.down && !controls.up)) {
 				this.applyPowerToActiveGroup(
-					add(
-						mul({
-							x: (controls.left ? -1 : (controls.right ? 1 : 0)),
-							y: controls.up ? -1 : (controls.down ? 1 : 0),
-						}, 0.2),
-						mul({
-							x: -controls.gx,
-							y: controls.gy
-						}, 6 / 9.8)
-					)
+					mul({
+						x: (controls.left ? -1 : (controls.right ? 1 : 0)),
+						y: controls.up ? -1 : (controls.down ? 1 : 0),
+					}, 0.2)
+				);
+			}
+
+			if ((controls.gx !== 0 || controls.gy !== 0)) {
+				this.applyPowerToAllParticles(
+					mul({
+						x: -controls.gx,
+						y: controls.gy
+					}, 1 / 9.8)
 				);
 			}
 
@@ -527,6 +529,19 @@ export class Jello implements IDrawable, IPower {
 				continue;
 			}
 
+			asB2D(Box2D, power, v => {
+				particle.body.ApplyForceToCenter(v, true);
+			});
+		}
+	}
+
+	private applyPowerToAllParticles(power: Vector) {
+		const {
+			particles,
+			Box2D,
+		} = this;
+
+		for (const particle of particles) {
 			asB2D(Box2D, power, v => {
 				particle.body.ApplyForceToCenter(v, true);
 			});
