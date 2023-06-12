@@ -54,8 +54,8 @@ export class Jello implements IDrawable, IPower {
 		k_near: number = 2,
 		kspring: number = 0.1,
 		stretch_speed: number = 0.3,
-		stretch_treshold: number = 0.3,
-		compress_speed: number = 0.1,
+		stretch_treshold: number = 0.02,
+		compress_speed: number = 0.4,
 		compress_treshold: number = 0.1,
 		viscosity_a: number = 0.5,
 		viscosity_b: number = 0.01,
@@ -298,7 +298,7 @@ export class Jello implements IDrawable, IPower {
 		let prev = spring_list;
 
 		while (spring) {
-			if (spring.rest_length > r) {
+			if (spring.rest_length > 1.5 * r) {
 				const particle_i = particles[spring.i];
 				const particle_j = particles[spring.j];
 				particle_i.spring_ij.delete(spring.j);
