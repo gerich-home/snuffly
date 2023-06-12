@@ -23,27 +23,13 @@ function App() {
   const [touch, setTouch] = useState(false);
   const [gx, setGx] = useState(0);
   const [gy, setGy] = useState(0);
-  const [rotationAngle, setRotationAngle] = useState(0);
 
-  const onTouchStart = (e: TouchEvent) => {
-    e.preventDefault();
-
+  const onTouchStart = () => {
     setTouch(true);
   };
 
-  const onTouchMove = (e: TouchEvent) => {
-    const touch = e.changedTouches.item(0);
-      
-    e.preventDefault();
-
-    if(touch) {
-      setRotationAngle(touch.rotationAngle);
-    }
-  };
-
-  const onTouchEnd = (e: TouchEvent) => {
+  const onTouchEnd = () => {
     setTouch(false);
-    setRotationAngle(0);
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -126,14 +112,6 @@ function App() {
   }, []);
   
   useEffect(() => {
-    window.addEventListener("touchmove", onTouchMove, false);
-
-    return () => {
-      window.removeEventListener("touchmove", onTouchMove, false);
-    };
-  }, []);
-  
-  useEffect(() => {
     window.addEventListener("touchend", onTouchEnd, false);
 
     return () => {
@@ -183,7 +161,7 @@ function App() {
     ctx.fillStyle = '#000000';
 
     const controls = {
-      spinPower: spins ? 0.001 : (rotationAngle === 0 ? 0 : (rotationAngle * 0.01 / 90)),
+      spinPower: (spins || touch) ? 0.001 : 0,
       down,
       left,
       right,
@@ -201,7 +179,7 @@ function App() {
     testLevel.draw(ctx);
 
     ctx.restore();
-  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, gx, gy, rotationAngle]);
+  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy]);
 
 
   useEffect(() => {
