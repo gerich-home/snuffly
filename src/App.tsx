@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBox2D } from './useBox2D';
 import { TestLevel } from './TestLevel';
 import { type GravitySensor as GravitySensorType } from 'motion-sensors-polyfill';
+import { Controls } from './core/IPower';
+import { mul } from './Particle';
 
 declare var GravitySensor: typeof GravitySensorType;
 
@@ -85,7 +87,7 @@ function App() {
       setTurnJello(false);
     }
   };
-  
+
   useEffect(() => {
     window.addEventListener("keydown", onKeyDown);
 
@@ -93,7 +95,7 @@ function App() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, []);
-  
+
   useEffect(() => {
     window.addEventListener("keyup", onKeyUp);
 
@@ -101,8 +103,8 @@ function App() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
-  
-  
+
+
   useEffect(() => {
     window.addEventListener("touchstart", onTouchStart, false);
 
@@ -110,7 +112,7 @@ function App() {
       window.removeEventListener("touchstart", onTouchStart, false);
     };
   }, []);
-  
+
   useEffect(() => {
     window.addEventListener("touchend", onTouchEnd, false);
 
@@ -160,8 +162,10 @@ function App() {
     ctx.save();
     ctx.fillStyle = '#000000';
 
-    const controls = {
-      spinPower: (spins || touch) ? 0.004 : 0,
+    const gravityScale = 0.5 / 9.8;
+
+    const controls: Controls = {
+      spins: (spins || touch),
       down,
       left,
       right,
@@ -169,11 +173,13 @@ function App() {
       turnFluid,
       turnElastic,
       turnJello,
-      gx,
-      gy,
+      gravity: mul({
+        x: -gx,
+        y: gy,
+      }, gravityScale),
     };
 
-    for(let i = 0; i < 10; i++) {
+    for (let i = 0; i < 10; i++) {
       testLevel.step(deltaTime / 1000, controls);
     }
     testLevel.draw(ctx);
@@ -213,7 +219,7 @@ function App() {
   }, [draw]);
 
   useEffect(() => {
-    if(canvasRef.current) {
+    if (canvasRef.current) {
       canvasRef.current.width = width;
       canvasRef.current.height = height;
     }

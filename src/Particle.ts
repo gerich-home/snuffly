@@ -106,7 +106,7 @@ export type Spring = {
 };
 
 export type ParticleGroup = {
-	particles: Set<number>;
+	readonly particles: Set<number>;
 	state: {
 		readonly type: ParticleState;
 		

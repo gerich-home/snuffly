@@ -1,10 +1,12 @@
-﻿export type IPower = {
+﻿import { Vector } from "../Particle";
+
+export type IPower = {
 	applyPower(controls: Controls): void;
 };
 
 
 export type Controls = {
-	spinPower: number;
+	spins: boolean;
 	left: boolean;
 	right: boolean;
 	down: boolean;
@@ -12,6 +14,5 @@ export type Controls = {
 	turnFluid: boolean;
 	turnElastic: boolean;
 	turnJello: boolean;
-	gx: number;
-	gy: number;
+	gravity: Vector;
 };
