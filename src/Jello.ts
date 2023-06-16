@@ -55,8 +55,8 @@ export class Jello implements IDrawable, IPower {
 		kspring: number = 0.1,
 		stretch_speed: number = 0.3,
 		stretch_treshold: number = 0.02,
-		compress_speed: number = 0.4,
-		compress_treshold: number = 0.1,
+		compress_speed: number = 0.5,
+		compress_treshold: number = 0.2,
 		viscosity_a: number = 0.5,
 		viscosity_b: number = 0.01,
 		max_springs: number = 15
@@ -137,14 +137,17 @@ export class Jello implements IDrawable, IPower {
 
 		this.applyJelloPowers(neighborsData.neighbors);
 
+		this.applyCompressionPowerToGroups(positions, 0.01);
+
 		if (controls) {
 			if (controls.spinPower !== 0) {
-				this.applySpinningPower(positions, controls.spinPower);
+				this.applySpinningPowerToGroup(this.active_group, positions, controls.spinPower);
 			}
 
 			if ((controls.left && !controls.right) || (controls.right && !controls.left)
 				|| (controls.up && !controls.down) || (controls.down && !controls.up)) {
-				this.applyPowerToActiveGroup(
+				this.applyPowerToGroup(
+					this.active_group,
 					mul({
 						x: (controls.left ? -1 : (controls.right ? 1 : 0)),
 						y: controls.up ? -1 : (controls.down ? 1 : 0),
@@ -298,7 +301,7 @@ export class Jello implements IDrawable, IPower {
 		let prev = spring_list;
 
 		while (spring) {
-			if (spring.rest_length > 1.5 * r) {
+			if (spring.rest_length > 1.3 * r) {
 				const particle_i = particles[spring.i];
 				const particle_j = particles[spring.j];
 				particle_i.spring_ij.delete(spring.j);
@@ -495,42 +498,66 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
-	private applySpinningPower(positions: Vector[], spinPower: number) {
+	private applySpinningPowerToGroup(group: ParticleGroup, positions: Vector[], spinPower: number) {
 		const {
 			particles,
 			Box2D,
-			active_group,
 		} = this;
 
-		const activeGroupCenter = this.getActiveGroupCenter(positions);
+		const groupCenter = this.getGroupCenter(group, positions);
+		
+		for (const particleIndex of group.particles) {
+			const d = sub(groupCenter, positions[particleIndex], );
+			const power = mul({ x: d.y, y: -d.x }, spinPower);
 
+			asB2D(Box2D, power, v => {
+				particles[particleIndex].body.ApplyForceToCenter(v, true);
+			});
+		}
+	}
+	
+	private applyCompressionPowerToGroups(positions: Vector[], compressPower: number) {
+		const {
+			particles,
+		} = this;
+
+		const groups = new Set<ParticleGroup>();
 		for (const particle of particles) {
-			if (particle.group !== active_group) {
-				continue;
-			}
+			groups.add(particle.group);
+		}
 
-			const d = sub(positions[particle.index], activeGroupCenter);
+		for (const group of groups) {
+			this.applyCompressPowerToGroup(group, positions, compressPower);
+		}
+	}
 
-			asB2D(Box2D, mul({ x: -d.y, y: d.x }, spinPower), v => {
-				particle.body.ApplyForceToCenter(v, true);
+	private applyCompressPowerToGroup(group: ParticleGroup, positions: Vector[], compressPower: number) {
+		const {
+			particles,
+			Box2D,
+		} = this;
+
+		const groupCenter = this.getGroupCenter(group, positions);
+		
+		for (const particleIndex of group.particles) {
+			const d = sub(groupCenter, positions[particleIndex]);
+			const power = mul(d, compressPower);
+
+			asB2D(Box2D, power, v => {
+				particles[particleIndex].body.ApplyForceToCenter(v, true);
 			});
 		}
 	}
 
-	private applyPowerToActiveGroup(power: Vector) {
+	private applyPowerToGroup(group: ParticleGroup, power: Vector) {
 		const {
 			particles,
 			Box2D,
-			active_group,
 		} = this;
 
-		for (const particle of particles) {
-			if (particle.group !== active_group) {
-				continue;
-			}
-
+		for (const particleIndex of group.particles) {
 			asB2D(Box2D, power, v => {
-				particle.body.ApplyForceToCenter(v, true);
+				particles[particleIndex].body.ApplyForceToCenter(v, true);
 			});
 		}
 	}
@@ -550,23 +577,21 @@ export class Jello implements IDrawable, IPower {
 
 	private getActiveGroupCenter(positions: Vector[]) {
 		const {
-			particles,
 			active_group,
 		} = this;
 
-		let activeGroupCenter = zero;
-		let activeGroupPtCount = 0;
-		for (const particle of particles) {
-			if (particle.group !== active_group) {
-				continue;
-			}
+		const group = active_group;
 
-			activeGroupCenter = add(activeGroupCenter, positions[particle.index]);
-			activeGroupPtCount++;
+		return this.getGroupCenter(group, positions);
+	}
+
+	private getGroupCenter(group: ParticleGroup, positions: Vector[]) {
+		let groupCenter = zero;
+		for (const particleIndex of group.particles) {
+			groupCenter = add(groupCenter, positions[particleIndex]);
 		}
 
-		activeGroupCenter = mul(activeGroupCenter, 1 / activeGroupPtCount);
-		return activeGroupCenter;
+		return mul(groupCenter, 1 / group.particles.size);
 	}
 
 	private getSPHPower(neighbors: Neighbor[][]) {
