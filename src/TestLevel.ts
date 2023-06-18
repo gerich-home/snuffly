@@ -12,6 +12,8 @@ export class TestLevel {
 	readonly drawables: IDrawable[];
 	readonly velocityIterations = 2;
 	readonly positionIterations = 2;
+	readonly stepsPerDrawFrame = 10;
+	currentTime: number = 0;
 
 	constructor(
 		public readonly Box2D: Box2D,
@@ -249,13 +251,67 @@ export class TestLevel {
 		return world;
 	}
 
-	step(dt: number, controls: Controls): void {
-		for (const power of this.powers) {
-			power.applyPower(controls);
+	step(newCurrentTime: number, controls: Controls): void {
+		const frameTimeMs = 1000 / 60; // 16.7 ms
+		const timeReservedForDrawMs = 1.4;
+		const timeToCalculatePhysics = frameTimeMs - timeReservedForDrawMs;
+		
+		const timeDiff = Math.min(newCurrentTime - this.currentTime, frameTimeMs * 10);
+
+		const numSteps = 10;
+		const dt = timeDiff / numSteps;
+
+
+		for (let step = 0; step < numSteps; step++) {
+			for (const power of this.powers) {
+				power.applyPower(controls);
+			}
+
+			this.world.Step(0.01 * dt, this.velocityIterations, this.positionIterations);
 		}
 
-		this.world.Step(dt, this.velocityIterations, this.positionIterations);
+		this.currentTime = newCurrentTime;
+
+		/*
+
+		const maxDt = (timeToCalculatePhysics) / this.stepsPerDrawFrame;
+		const timeDiff = newCurrentTime - this.currentTime;
+		const numStepsNeeded = Math.ceil(timeDiff / maxDt);
+
+		const numSteps = Math.min(numStepsNeeded, this.stepsPerDrawFrame);
+		const dt = Math.min(3 * frameTimeMs, timeDiff) / numSteps;
+
+		for (let step = 0; step < numSteps; step++) {
+			for (const power of this.powers) {
+				power.applyPower(controls);
+			}
+	
+			this.world.Step(dt / 100, this.velocityIterations, this.positionIterations);
+		}
+		*/
 	}
+
+	/*
+	step(newCurrentTime: number, controls: Controls): void {
+		const maxDt = 1;
+		const timeDiff = newCurrentTime - this.currentTime;
+		
+		const maxNumSteps = 10; // skip game frames if trying to simulate too much frames (60 FPS -> 16.7 ms per animation frame -> 8 physics frames if one takes up to 2ms to calculate)
+		const maxAllowedDt = (1 / 60) / maxNumSteps;
+		const numStepsNeeded = Math.min(Math.ceil(timeDiff / maxDt), maxNumSteps);
+		const dt = 0.01 * Math.min(timeDiff / numStepsNeeded, maxAllowedDt);
+
+		for (let step = 0; step < numStepsNeeded; step++) {
+			for (const power of this.powers) {
+				power.applyPower(controls);
+			}
+	
+			this.world.Step(dt, this.velocityIterations, this.positionIterations);
+		}
+
+		this.currentTime = newCurrentTime;
+	}
+	*/
 
 	draw(ctx: CanvasRenderingContext2D): void {
 		for (const drawable of this.drawables) {

@@ -1,5 +1,5 @@
 import './App.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBox2D } from './useBox2D';
 import { TestLevel } from './TestLevel';
 import { type GravitySensor as GravitySensorType } from 'motion-sensors-polyfill';
@@ -139,29 +139,15 @@ function App() {
 
   const Box2D = useBox2D();
 
-  const [testLevel, setTestLevel] = useState<TestLevel>();
-
-  useEffect(() => {
+  const testLevel = useMemo(() => {
     if (!Box2D) {
       return;
     }
 
-    const testLevel = new TestLevel(Box2D, width, height, isMobile);
-    setTestLevel(testLevel);
+    return new TestLevel(Box2D, width, height, isMobile);
   }, [Box2D]);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const draw = useCallback((ctx: CanvasRenderingContext2D, deltaTime: number) => {
-    if (!testLevel) {
-      return;
-    }
-
-    ctx.clearRect(0, 0, width, height);
-
-    ctx.save();
-    ctx.fillStyle = '#000000';
-
+  const controls = useMemo(() => {
     const gravityScale = 0.5 / 9.8;
 
     const controls: Controls = {
@@ -179,17 +165,18 @@ function App() {
       }, gravityScale),
     };
 
-    for (let i = 0; i < 10; i++) {
-      testLevel.step(deltaTime / 1000, controls);
+    return controls;
+  }, [spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy]);
+
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+
+  const canvasRef = useCallback((node: HTMLCanvasElement) => {
+    if (node !== null) {
+      setCanvas(node);
     }
-    testLevel.draw(ctx);
+  }, []);
 
-    ctx.restore();
-  }, [testLevel, spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy]);
-
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  const context = useMemo(() => {
     if (!canvas) {
       return;
     }
@@ -198,16 +185,53 @@ function App() {
     if (!context) {
       return;
     }
-    let previousTime: number | undefined = undefined;
+
+    return context;
+  }, [canvas]);
+
+  const simulateToTime = useCallback((newCurrentTime: number) => {
+    if (!testLevel) {
+      return;
+    }
+
+    testLevel.step(newCurrentTime, controls);
+  }, [testLevel, controls]);
+
+  const draw = useCallback(() => {
+    if (!testLevel || !context) {
+      return;
+    }
+
+    context.clearRect(0, 0, width, height);
+
+    context.save();
+    context.fillStyle = '#000000';
+
+    testLevel.draw(context);
+
+    context.restore();
+  }, [testLevel, context]);
+
+  const [startTime, setStartTime] = useState<number | undefined>();
+
+  useEffect(() => {
+    const animationFrameId = window.requestAnimationFrame(setStartTime);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  useEffect(() => {
     let animationFrameId: number;
 
     const render = (time: number) => {
-      if (previousTime !== undefined) {
-        const deltaTime = time - previousTime;
-        draw(context, deltaTime);
+      if (startTime !== undefined) {
+        const newCurrentTime = time - startTime;
+        simulateToTime(newCurrentTime);
+        draw();
       }
 
-      previousTime = time;
       animationFrameId = window.requestAnimationFrame(render);
     };
 
@@ -216,14 +240,14 @@ function App() {
     return () => {
       window.cancelAnimationFrame(animationFrameId);
     };
-  }, [draw]);
+  }, [simulateToTime, draw, startTime]);
 
   useEffect(() => {
-    if (canvasRef.current) {
-      canvasRef.current.width = width;
-      canvasRef.current.height = height;
+    if (canvas) {
+      canvas.width = width;
+      canvas.height = height;
     }
-  }, [canvasRef]);
+  }, [canvas]);
 
   return (
     <canvas ref={canvasRef} />
