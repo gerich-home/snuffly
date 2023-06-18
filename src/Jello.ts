@@ -201,11 +201,6 @@ export class Jello implements IDrawable, IPower {
 			this.applyPowerToAllParticles(gravity);
 		}
 
-		this.applyPowerToAllParticlesByPosition(positions, p => ({
-			x: Math.sin(p.x / 30) * 0.1,
-			y: Math.sin(p.y / 30) * 0.1
-		}));
-
 		if (controls.turnJello && !controls.turnElastic && !controls.turnFluid && activeGroup.state.type !== Sticky) {
 			activeGroup.state = {
 				...activeGroup.state,
