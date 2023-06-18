@@ -113,7 +113,7 @@ export class TestLevel {
 			controlPower: 0.2,
 			compressPower: 0.01,
 			activeSpinningCompressPower: 0.002,
-			spinPower: 0.005,
+			spinPower: 0.003,
 			maxCollisionVelocity: 100,
 			minNeighborDistance: 0.01,
 			maxSoftSpringCurrentLength: 1.2 * r,

@@ -22,20 +22,25 @@ function App() {
   const [turnElastic, setTurnElastic] = useState(false);
   const [turnJello, setTurnJello] = useState(false);
   const [turnFluid, setTurnFluid] = useState(false);
+  const [soft, setSoft] = useState(false);
   const [touch, setTouch] = useState(false);
   const [gx, setGx] = useState(0);
   const [gy, setGy] = useState(0);
 
   const keyMap: { [code: string]: (value: boolean) => void } = useMemo(() => ({
-    'KeyA': setLeft,
-    'KeyD': setRight,
     'ArrowLeft': setSpinsRight,
     'ArrowRight': setSpinsLeft,
+
     'KeyW': setUp,
+    'KeyA': setLeft,
     'KeyS': setDown,
+    'KeyD': setRight,
+
+    'KeyQ': setTurnJello,
     'KeyE': setTurnElastic,
     'KeyF': setTurnFluid,
-    'KeyJ': setTurnJello,
+
+    'Space': setSoft,
   }), []);
 
   const onTouchStart = () => {
@@ -51,6 +56,7 @@ function App() {
     if (handler) {
       handler(true);
     }
+    console.log(event.code)
   }, [keyMap]);
 
   const onKeyUp = useCallback((event: KeyboardEvent) => {
@@ -139,10 +145,11 @@ function App() {
         x: -gx,
         y: gy,
       }, gravityScale),
+      soft,
     };
 
     return controls;
-  }, [spinsLeft, spinsRight, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy]);
+  }, [spinsLeft, spinsRight, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy, soft]);
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
 
@@ -228,11 +235,14 @@ function App() {
   return (
     <>
       <div style={{ position: 'absolute', animation: 'fadeOut 7s', animationFillMode: 'forwards' }}>
-        <div>space - spin jello</div>
-        <div>arrows - move jello</div>
-        <div>E - make elastic & non-sticky</div>
-        <div>J - make plastic</div>
-        <div>ctrl - relax</div>
+        {isMobile ? null : (
+          <>
+            <div>WASD - move jello</div>
+            <div>left/right arrows - spin jello</div>
+            <div>Q - make sticky & plastic</div>
+            <div>E - make non-sticky & elastic</div>
+          </>
+        )}
       </div>
       <canvas ref={canvasRef} />
     </>

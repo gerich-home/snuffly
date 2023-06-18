@@ -169,7 +169,9 @@ export class Jello implements IDrawable, IPower {
 		this.applyCompressionPowerToInactiveGroups(positions);
 
 		if (controls.spins === 'none') {
-			this.applyCompressPowerToGroup(activeGroup, positions, this.compressPower);
+			if (!controls.soft) {
+				this.applyCompressPowerToGroup(activeGroup, positions, this.compressPower);
+			}
 		} else {
 			this.applySpinningPowerToGroup(activeGroup, positions, controls.spins === 'left' ? 1 : -1);
 			this.applyCompressPowerToGroup(activeGroup, positions, this.activeSpinningCompressPower);

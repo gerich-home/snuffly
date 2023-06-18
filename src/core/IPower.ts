@@ -13,5 +13,6 @@ export type Controls = {
 	turnFluid: boolean;
 	turnElastic: boolean;
 	turnJello: boolean;
+	soft: boolean;
 	gravity: Vector;
 };
