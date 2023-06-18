@@ -9,114 +9,107 @@ const {
 	Fluid,
 } = ParticleState;
 
+type JelloArgs = {
+	readonly Box2D: Box2D;
+	readonly particles: Body[];
+	readonly r: number;                   // Радиус взаимодействия частиц
+	readonly rest_density: number;        // Нулевая плотность
+	readonly k: number;                   // Сила дальнего давления
+	readonly k_near: number;    	      // Сила ближнего давления
+	readonly k_spring_elastic: number;    // Сила эластичных связей
+	readonly k_spring_plastic: number;    // Сила пластичных связей
+	readonly stretch_speed: number;       // Скорость растяжения связей
+	readonly stretch_treshold: number;    // Порог для растяжения связей
+	readonly compress_speed: number;      // Скорость сжатия связей
+	readonly compress_treshold: number;   // Порог для сжатия связей
+	readonly viscosity_a: number;         // Параметр трения 1
+	readonly viscosity_b: number;         // Параметр трения 2
+	readonly max_springs: number;         // Максимальное число связей для вершины
+	
+	readonly max_soft_sprint_rest_length: number;
+	readonly strong_spring_particleCount: number;
+	readonly strong_spring_max_length: number;
+	readonly weak_spring_max_length: number;
+	readonly min_neighbor_distance: number;
+	readonly controlPower: number;
+	readonly compressPower: number;
+	readonly spinPower: number;
+	readonly max_collision_velocity: number;
+}
+
 export class Jello implements IDrawable, IPower {
-	ptCount: number;								//Количество частиц
+	readonly Box2D: Box2D;
+	readonly r: number;
+	readonly rest_density: number;
+	readonly k: number;
+	readonly k_near: number;
+	readonly k_spring_elastic: number;
+	readonly k_spring_plastic: number;
+	readonly stretch_speed: number;
+	readonly stretch_treshold: number;
+	readonly compress_speed: number;
+	readonly compress_treshold: number;
+	readonly viscosity_a: number;
+	readonly viscosity_b: number;
+	readonly max_springs: number;
 
-	particles: Particle[];
+	
+	readonly max_soft_sprint_rest_length: number;
+	readonly strong_spring_particleCount: number;
+	readonly strong_spring_max_length: number;
+	readonly weak_spring_max_length: number;
+	readonly min_neighbor_distance_squared: number;
+	readonly controlPower: number;
+	readonly compressPower: number;
+	readonly spinPower: number;
+	readonly max_collision_velocity: number;
+	
+	// Состояние
+	active_group: ParticleGroup;        // Активный кусок желе
+	
+	readonly ptCount: number;                 //Количество частиц
+	readonly particles: Particle[];
+	readonly spring_list: Spring;       //Связный список активных связей
 
+	// Просчитанные заранее данные
+	readonly r2: number;			    // Квадрат радиуса
+	readonly r_inv: number;			    // Обратный радиус
+	readonly r_inv_half: number;		// Половина обратного радиуса
 
-	spring_list: Spring;						//Связный список активных связей
-
-	//Общие параметры и просчитанные заранее данные
-	spacing: number;		//Псевдорадиус
-	imageRadius: number;	//Радиус изображения
-	k: number;				//Сила дальнего давления
-	k_near: number;		//Сила ближнего давления
-	rest_density: number;	//Нулевая плотность
-	r: number;				//Радиус частиц
-	r2: number;			//Квадрат радиуса
-	r_inv: number;			//Обратный радиус
-	r_inv_half: number;		//Половина обратного радиуса
-	max_soft_sprint_rest_length: number;
-
-	strong_spring_particleCount: number;
-	strong_spring_max_length: number;
-	weak_spring_max_length: number;
-
-	min_neighbor_distance_squared: number;
-
-	max_springs: number;			//Максимальное число связей для вершины
-	k_spring_elastic: number;			//Сила эластичных связей
-	k_spring_plastic: number;			//Сила пластичных связей
-	stretch_speed: number;		//Скорость сжатия связей
-	compress_speed: number;	//Скорость растяжения связей
-	compress_treshold: number;	//Порог для сжатия связей
-	stretch_treshold: number;	//Порог для растяжения связей
-	viscosity_a: number;		//Параметр трения 1
-	viscosity_b: number;		//Параметр трения 2
-
-
-	controlPower: number;
-	compressPower: number;
-	spinPower: number;
-
-	max_collision_velocity: number;
-
-	active_group: ParticleGroup;			//Активный кусок желе
-
-	treshold: number;			//Минимальная прозрачность воды
-
+	
 	// ========================================================== //
 	constructor(
-		readonly Box2D: Box2D,
-		particles: Body[],
-		spacing: number = 20,
-		imageRadius: number = 30,
-		rest_density: number = 1,
-		treshold: number = 0xA0000000,
-		visible: boolean = true,
-		k: number = 0.02,
-		k_near: number = 2,
-		kspring: number = 0.1,
-		stretch_speed: number = 0.3,
-		stretch_treshold: number = 0.02,
-		compress_speed: number = 0.5,
-		compress_treshold: number = 0.2,
-		viscosity_a: number = 0.5,
-		viscosity_b: number = 0.01,
-		max_springs: number = 15,
+		args: JelloArgs
 	) {
-		this.spacing = spacing;
-		this.r = spacing * 1.25;
-		this.r2 = this.r * this.r;
-		this.r_inv = 1 / this.r;
-		this.r_inv_half = 0.5 * this.r_inv;
-		this.max_soft_sprint_rest_length = 1.3 * this.r;
+		this.Box2D = args.Box2D;
+		this.r = args.r;
+		this.rest_density = args.rest_density;
+		this.k = args.k;
+		this.k_near = args.k_near;
+		this.k_spring_elastic = args.k_spring_elastic;
+		this.k_spring_plastic = args.k_spring_plastic;
+		this.stretch_speed = args.stretch_speed;
+		this.stretch_treshold = args.stretch_treshold;
+		this.compress_speed = args.compress_speed;
+		this.compress_treshold = args.compress_treshold;
+		this.viscosity_a = args.viscosity_a;
+		this.viscosity_b = args.viscosity_b;
+		this.max_springs = args.max_springs;
+		this.max_soft_sprint_rest_length = args.max_soft_sprint_rest_length;
+		this.strong_spring_particleCount = args.strong_spring_particleCount;
+		this.strong_spring_max_length = args.strong_spring_max_length;
+		this.weak_spring_max_length = args.weak_spring_max_length;
+		this.controlPower = args.controlPower;
+		this.compressPower = args.compressPower;
+		this.spinPower = args.spinPower;
+		this.max_collision_velocity = args.max_collision_velocity;
+		
+		const {r, min_neighbor_distance} = args;
 
-
-		this.controlPower = 0.2;
-		this.compressPower = 0.01;
-		this.spinPower = 0.006;
-
-		this.strong_spring_particleCount = 5;
-		this.strong_spring_max_length = 4 * this.r;
-		this.weak_spring_max_length = 2 * this.r;
-
-		this.max_collision_velocity = 100;
-
-		const min_neighbor_distance = 0.01;
 		this.min_neighbor_distance_squared = min_neighbor_distance * min_neighbor_distance;
-
-
-		this.max_springs = max_springs;
-		this.k_spring_elastic = kspring;
-		this.k_spring_plastic = kspring * 2;
-
-		this.stretch_speed = stretch_speed;
-		this.stretch_treshold = stretch_treshold;
-
-		this.compress_speed = compress_speed;
-		this.compress_treshold = compress_treshold;
-
-		this.viscosity_a = viscosity_a;
-		this.viscosity_b = viscosity_b;
-
-		this.k = k;
-		this.k_near = k_near;
-		this.imageRadius = imageRadius;
-		this.rest_density = rest_density;
-
-		this.treshold = treshold;
+		this.r2 = r * r;
+		this.r_inv = 1 / r;
+		this.r_inv_half = 0.5 / r;
 
 		this.spring_list = {
 			i: -1,
@@ -127,7 +120,7 @@ export class Jello implements IDrawable, IPower {
 			rest_length: -1
 		};
 
-		this.particles = particles.map<Particle>((body, i) => ({
+		this.particles = args.particles.map<Particle>((body, i) => ({
 			index: i,
 			body,
 			ij: new Set<Particle>(),
@@ -142,7 +135,9 @@ export class Jello implements IDrawable, IPower {
 				particles: new Set<number>([i]),
 			}
 		}));
+
 		this.ptCount = this.particles.length;
+
 		this.active_group = this.particles[0].group;
 	}
 

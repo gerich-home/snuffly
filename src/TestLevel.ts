@@ -22,9 +22,7 @@ export class TestLevel {
 		public readonly isMobile: boolean
 	) {
 		this.world = this.createBox2DWorld(Box2D);
-		const jello = isMobile ?
-			this.createJello(Box2D, this.world, 100, 20) :
-			this.createJello(Box2D, this.world, 200, 40);
+		const jello = this.createJello(Box2D, this.world);
 		//const cmCalc = new CMCalculator(jello.particles);
 
 		this.drawables = [
@@ -58,9 +56,15 @@ export class TestLevel {
 		*/
 	}
 
-	createJello(Box2D: Box2D, world: World, count: number = 200, r: number = 20, m: number = 0.01, friction: number = 1, restitution: number = 0.1, rest_density: number = 1, xmin: number = 0, ymin: number = 0, xmax: number = this.width, ymax: number = this.height): Jello {
-		const jellopt: Body[] = [];
+	createJello(Box2D: Box2D, world: World): Jello {
+		const particles: Body[] = [];
 
+		const count: number = 100;
+		const r: number = 25;
+		const m: number = 0.01;
+		const friction: number = 1;
+		const restitution: number = 0.1;
+		const rest_density: number = 1;
 
 		const density: number = m / (Math.PI * b2r * b2r);
 		//let bmp1: BitmapData = FluidParticle.drawBubble(1.5 * r, 0xFFEE00);
@@ -87,10 +91,35 @@ export class TestLevel {
 
 			const body = world.CreateBody(bodyDef);
 			body.CreateFixture(circleFixtureDef);
-			jellopt.push(body);
+			particles.push(body);
 		}
 
-		return new Jello(Box2D, jellopt, r, 1.5 * r, rest_density, 0xB << 30);
+		return new Jello({
+			Box2D,
+			particles,
+			r,
+			rest_density,
+			k: 0.02,
+			k_near: 2,
+			k_spring_elastic: 0.1,
+			k_spring_plastic: 0.2,
+			stretch_speed: 0.3,
+			stretch_treshold: 0.02,
+			compress_speed: 0.5,
+			compress_treshold: 0.2,
+			viscosity_a: 0.5,
+			viscosity_b: 0.01,
+			max_springs: 15,
+			max_soft_sprint_rest_length: 1.3 * r,
+			controlPower: 0.2,
+			compressPower: 0.01,
+			spinPower: 0.006,
+			strong_spring_particleCount: 5,
+			strong_spring_max_length: 4 * r,
+			weak_spring_max_length: 2 * r,
+			max_collision_velocity: 100,
+			min_neighbor_distance: 0.01,
+		});
 	}
 
 	// ========================================================== //
