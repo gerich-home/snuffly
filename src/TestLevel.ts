@@ -64,7 +64,7 @@ export class TestLevel {
 		const m: number = 0.01;
 		const friction: number = 1;
 		const restitution: number = 0.1;
-		const rest_density: number = 1;
+		const restDensity: number = 1;
 
 		const density: number = m / (Math.PI * b2r * b2r);
 		//let bmp1: BitmapData = FluidParticle.drawBubble(1.5 * r, 0xFFEE00);
@@ -98,27 +98,28 @@ export class TestLevel {
 			Box2D,
 			particles,
 			r,
-			rest_density,
+			restDensity,
 			k: 0.02,
-			k_near: 2,
-			k_spring_elastic: 0.1,
-			k_spring_plastic: 0.2,
-			stretch_speed: 0.3,
-			stretch_treshold: 0.02,
-			compress_speed: 0.5,
-			compress_treshold: 0.2,
-			viscosity_a: 0.5,
-			viscosity_b: 0.01,
-			max_springs: 15,
-			max_soft_sprint_rest_length: 1.3 * r,
+			kNear: 2,
+			kSpringStrong: 0.1,
+			kSpringSoft: 0.2,
+			maxSoftSpringCurrentLength: 3 * r,
+			stretchSpeed: 0.3,
+			stretchTreshold: 0,
+			compressSpeed: 0.5,
+			compressTreshold: 0.2,
+			viscosityA: 0.5,
+			viscosityB: 0.01,
+			maxParticleSpringsCount: 15,
+			maxSpringRestLengthSoft: 1.3 * r,
 			controlPower: 0.2,
-			compressPower: 0.01,
-			spinPower: 0.006,
-			strong_spring_particleCount: 5,
-			strong_spring_max_length: 4 * r,
-			weak_spring_max_length: 2 * r,
-			max_collision_velocity: 100,
-			min_neighbor_distance: 0.01,
+			compressPower: 0.05,
+			activeSpinningCompressPower: 0.005,
+			spinPower: 0.005,
+			maxStrongSpringParticleCount: 5,
+			maxStrongSpringCurrentLength: 4 * r,
+			maxCollisionVelocity: 100,
+			minNeighborDistance: 0.01,
 		});
 	}
 
@@ -293,7 +294,7 @@ export class TestLevel {
 
 		for (let step = 0; step < numSteps; step++) {
 			for (const power of this.powers) {
-				power.applyPower(controls);
+				power.applyForces(controls);
 			}
 
 			this.world.Step(0.01 * dt, this.velocityIterations, this.positionIterations);

@@ -1,9 +1,8 @@
 ﻿import { Vector } from "../Particle";
 
 export type IPower = {
-	applyPower(controls: Controls): void;
+	applyForces(controls: Controls): void;
 };
-
 
 export type Controls = {
 	spins: boolean;

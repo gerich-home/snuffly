@@ -20,7 +20,7 @@ export class CMCalculator implements IPower {
 	get vx() { return this._vx; }
 	get vy() { return this._vy; }
 
-	applyPower(): void {
+	applyForces(): void {
 		let cx = 0;
 		let cy = 0;
 		for (const p of this.particles) {

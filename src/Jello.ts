@@ -12,106 +12,114 @@ const {
 type JelloArgs = {
 	readonly Box2D: Box2D;
 	readonly particles: Body[];
-	readonly r: number;                   // Радиус взаимодействия частиц
-	readonly rest_density: number;        // Нулевая плотность
-	readonly k: number;                   // Сила дальнего давления
-	readonly k_near: number;    	      // Сила ближнего давления
-	readonly k_spring_elastic: number;    // Сила эластичных связей
-	readonly k_spring_plastic: number;    // Сила пластичных связей
-	readonly stretch_speed: number;       // Скорость растяжения связей
-	readonly stretch_treshold: number;    // Порог для растяжения связей
-	readonly compress_speed: number;      // Скорость сжатия связей
-	readonly compress_treshold: number;   // Порог для сжатия связей
-	readonly viscosity_a: number;         // Параметр трения 1
-	readonly viscosity_b: number;         // Параметр трения 2
-	readonly max_springs: number;         // Максимальное число связей для вершины
-	
-	readonly max_soft_sprint_rest_length: number;
-	readonly strong_spring_particleCount: number;
-	readonly strong_spring_max_length: number;
-	readonly weak_spring_max_length: number;
-	readonly min_neighbor_distance: number;
+	readonly r: number;                             // Радиус взаимодействия частиц
+	readonly restDensity: number;                   // Нулевая плотность
+	readonly k: number;                             // Сила дальнего давления
+	readonly kNear: number;    	                    // Сила ближнего давления
+	readonly kSpringStrong: number;                 // Сила эластичных связей
+	readonly kSpringSoft: number;                   // Сила пластичных связей
+	readonly stretchSpeed: number;                  // Скорость растяжения связей
+	readonly stretchTreshold: number;               // Порог для растяжения связей
+	readonly compressSpeed: number;                 // Скорость сжатия связей
+	readonly compressTreshold: number;              // Порог для сжатия связей
+	readonly viscosityA: number;                    // Параметр трения 1
+	readonly viscosityB: number;                    // Параметр трения 2
+	readonly maxParticleSpringsCount: number;       // Максимальное число связей для вершины
+
+	readonly maxSpringRestLengthSoft: number;
+	readonly maxStrongSpringParticleCount: number;
+	readonly maxStrongSpringCurrentLength: number;
+	readonly maxSoftSpringCurrentLength: number;
+	readonly minNeighborDistance: number;
 	readonly controlPower: number;
 	readonly compressPower: number;
+	readonly activeSpinningCompressPower: number;
 	readonly spinPower: number;
-	readonly max_collision_velocity: number;
-}
+	readonly maxCollisionVelocity: number;
+};
 
 export class Jello implements IDrawable, IPower {
 	readonly Box2D: Box2D;
 	readonly r: number;
-	readonly rest_density: number;
+	readonly restDensity: number;
 	readonly k: number;
-	readonly k_near: number;
-	readonly k_spring_elastic: number;
-	readonly k_spring_plastic: number;
-	readonly stretch_speed: number;
-	readonly stretch_treshold: number;
-	readonly compress_speed: number;
-	readonly compress_treshold: number;
-	readonly viscosity_a: number;
-	readonly viscosity_b: number;
-	readonly max_springs: number;
+	readonly kNear: number;
+	readonly kSpringStrong: number;
+	readonly kSpringSoft: number;
+	readonly stretchSpeed: number;
+	readonly stretchTreshold: number;
+	readonly compressSpeed: number;
+	readonly compressTreshold: number;
+	readonly viscosityA: number;
+	readonly viscosityB: number;
+	readonly maxParticleSpringsCount: number;
 
-	
-	readonly max_soft_sprint_rest_length: number;
-	readonly strong_spring_particleCount: number;
-	readonly strong_spring_max_length: number;
-	readonly weak_spring_max_length: number;
-	readonly min_neighbor_distance_squared: number;
+
+	readonly maxSpringRestLengthSoft: number;
+	readonly maxStrongSpringParticleCount: number;
+	readonly maxStrongSpringCurrentLength: number;
+	readonly maxSoftSpringCurrentLength: number;
+	readonly minNeighborDistanceSquared: number;
 	readonly controlPower: number;
 	readonly compressPower: number;
+	readonly activeSpinningCompressPower: number;
 	readonly spinPower: number;
-	readonly max_collision_velocity: number;
+	readonly maxCollisionVelocity: number;
 	
 	// Состояние
-	active_group: ParticleGroup;        // Активный кусок желе
-	
-	readonly ptCount: number;                 //Количество частиц
-	readonly particles: Particle[];
-	readonly spring_list: Spring;       //Связный список активных связей
+	activeGroup: ParticleGroup;        // Активный кусок желе
 
+	readonly particlesCount: number;    // Количество частиц
+	readonly particles: Particle[];
+	readonly springList: Spring;        // Связный список активных связей
+	
 	// Просчитанные заранее данные
 	readonly r2: number;			    // Квадрат радиуса
 	readonly r_inv: number;			    // Обратный радиус
 	readonly r_inv_half: number;		// Половина обратного радиуса
 
-	
+	readonly stretchSpeedDivR: number;
+	readonly compressSpeedDivR: number;
+
+
 	// ========================================================== //
 	constructor(
 		args: JelloArgs
 	) {
 		this.Box2D = args.Box2D;
 		this.r = args.r;
-		this.rest_density = args.rest_density;
+		this.restDensity = args.restDensity;
 		this.k = args.k;
-		this.k_near = args.k_near;
-		this.k_spring_elastic = args.k_spring_elastic;
-		this.k_spring_plastic = args.k_spring_plastic;
-		this.stretch_speed = args.stretch_speed;
-		this.stretch_treshold = args.stretch_treshold;
-		this.compress_speed = args.compress_speed;
-		this.compress_treshold = args.compress_treshold;
-		this.viscosity_a = args.viscosity_a;
-		this.viscosity_b = args.viscosity_b;
-		this.max_springs = args.max_springs;
-		this.max_soft_sprint_rest_length = args.max_soft_sprint_rest_length;
-		this.strong_spring_particleCount = args.strong_spring_particleCount;
-		this.strong_spring_max_length = args.strong_spring_max_length;
-		this.weak_spring_max_length = args.weak_spring_max_length;
+		this.kNear = args.kNear;
+		this.kSpringStrong = args.kSpringStrong;
+		this.kSpringSoft = args.kSpringSoft;
+		this.stretchSpeed = args.stretchSpeed;
+		this.stretchTreshold = args.stretchTreshold;
+		this.compressSpeed = args.compressSpeed;
+		this.compressTreshold = args.compressTreshold;
+		this.viscosityA = args.viscosityA;
+		this.viscosityB = args.viscosityB;
+		this.maxParticleSpringsCount = args.maxParticleSpringsCount;
+		this.maxSpringRestLengthSoft = args.maxSpringRestLengthSoft;
+		this.maxStrongSpringParticleCount = args.maxStrongSpringParticleCount;
+		this.maxStrongSpringCurrentLength = args.maxStrongSpringCurrentLength;
+		this.maxSoftSpringCurrentLength = args.maxSoftSpringCurrentLength;
 		this.controlPower = args.controlPower;
 		this.compressPower = args.compressPower;
 		this.spinPower = args.spinPower;
-		this.max_collision_velocity = args.max_collision_velocity;
-		
-		const {r, min_neighbor_distance} = args;
+		this.maxCollisionVelocity = args.maxCollisionVelocity;
+		this.activeSpinningCompressPower = args.activeSpinningCompressPower;
 
-		this.min_neighbor_distance_squared = min_neighbor_distance * min_neighbor_distance;
+		const { r, minNeighborDistance, stretchSpeed, compressSpeed } = args;
+
+		this.minNeighborDistanceSquared = minNeighborDistance * minNeighborDistance;
 		this.r2 = r * r;
 		this.r_inv = 1 / r;
 		this.r_inv_half = 0.5 / r;
+		this.stretchSpeedDivR = stretchSpeed / r;
+		this.compressSpeedDivR = compressSpeed / r;
 
-		this.spring_list = {
+		this.springList = {
 			i: -1,
 			j: -1,
 			next: null,
@@ -136,16 +144,16 @@ export class Jello implements IDrawable, IPower {
 			}
 		}));
 
-		this.ptCount = this.particles.length;
+		this.particlesCount = this.particles.length;
 
-		this.active_group = this.particles[0].group;
+		this.activeGroup = this.particles[0].group;
 	}
 
-	createArrayOf<T>(factory: (index: number) => T, count: number) {
-		return Array(count).fill(null).map((_, index) => factory(index));
-	}
+	applyForces(controls: Controls): void {
+		const {
+			activeGroup,
+		} = this;
 
-	applyPower(controls: Controls): void {
 		const positions = this.getPositions();
 
 		const neighborsData = this.getNeighborsData(positions);
@@ -164,46 +172,52 @@ export class Jello implements IDrawable, IPower {
 
 		this.applyJelloPowers(neighborsData.neighbors);
 
-		this.applyCompressionPowerToGroups(positions);
+		this.applyCompressionPowerToInactiveGroups(positions);
 
-		if (controls) {
-			if (controls.spins) {
-				this.applySpinningPowerToGroup(this.active_group, positions);
-			}
+		if (controls.spins) {
+			this.applySpinningPowerToGroup(activeGroup, positions);
+			this.applyCompressPowerToGroup(activeGroup, positions, this.activeSpinningCompressPower);
+		} else {
+			this.applyCompressPowerToGroup(activeGroup, positions, this.compressPower);
+		}
 
-			if ((controls.left && !controls.right) || (controls.right && !controls.left)
-				|| (controls.up && !controls.down) || (controls.down && !controls.up)) {
-				const {
-					controlPower,
-				} = this;
+		if ((controls.left && !controls.right) || (controls.right && !controls.left)
+			|| (controls.up && !controls.down) || (controls.down && !controls.up)) {
+			const {
+				controlPower,
+			} = this;
 
-				this.applyPowerToGroup(
-					this.active_group,
-					mul({
-						x: (controls.left ? -1 : (controls.right ? 1 : 0)),
-						y: controls.up ? -1 : (controls.down ? 1 : 0),
-					}, controlPower)
-				);
-			}
+			this.applyPowerToGroup(
+				this.activeGroup,
+				mul({
+					x: (controls.left ? -1 : (controls.right ? 1 : 0)),
+					y: controls.up ? -1 : (controls.down ? 1 : 0),
+				}, controlPower)
+			);
+		}
 
-			const { gravity } = controls;
-			if ((gravity.x !== 0) || (gravity.y !== 0)) {
-				this.applyPowerToAllParticles(gravity);
-			}
+		const { gravity } = controls;
+		if ((gravity.x !== 0) || (gravity.y !== 0)) {
+			this.applyPowerToAllParticles(gravity);
+		}
 
-			if (controls.turnJello && !controls.turnElastic && !controls.turnFluid) {
-				this.active_group.state = {
-					...this.active_group.state,
-					type: Sticky
-				};
-			}
+		this.applyPowerToAllParticlesByPosition(positions, p => ({
+			x: Math.sin(p.x / 30) * 0.1,
+			y: Math.sin(p.y / 30) * 0.1
+		}));
 
-			if (!controls.turnJello && controls.turnElastic && !controls.turnFluid) {
-				this.active_group.state = {
-					...this.active_group.state,
-					type: Elastic
-				};
-			}
+		if (controls.turnJello && !controls.turnElastic && !controls.turnFluid && activeGroup.state.type !== Sticky) {
+			activeGroup.state = {
+				...activeGroup.state,
+				type: Sticky
+			};
+		}
+
+		if (!controls.turnJello && controls.turnElastic && !controls.turnFluid && activeGroup.state.type !== Elastic) {
+			activeGroup.state = {
+				...activeGroup.state,
+				type: Elastic
+			};
 		}
 
 		this.applyVelocityChanges(neighborsData.neighbors);
@@ -212,7 +226,7 @@ export class Jello implements IDrawable, IPower {
 	private recalculateGroups(groupsToRecalc: Set<ParticleGroup>) {
 		const {
 			particles,
-			active_group,
+			activeGroup,
 		} = this;
 
 		const links = this.getLinks(groupsToRecalc);
@@ -220,12 +234,12 @@ export class Jello implements IDrawable, IPower {
 		const visited = new Set<number>();
 		const activeGroupCandidates: ParticleGroup[] = [];
 
-		if (groupsToRecalc.has(active_group)) {
-			recalcGroup(active_group);
+		if (groupsToRecalc.has(activeGroup)) {
+			recalcGroup(activeGroup);
 		}
 
 		for (const group of groupsToRecalc) {
-			if (group === active_group) {
+			if (group === activeGroup) {
 				continue;
 			}
 
@@ -234,7 +248,7 @@ export class Jello implements IDrawable, IPower {
 
 		if (activeGroupCandidates.length > 0) {
 			const activeGroupsBySize = activeGroupCandidates.sort((g1, g2) => g2.particles.size - g1.particles.size);
-			this.active_group = activeGroupsBySize[0];
+			this.activeGroup = activeGroupsBySize[0];
 		}
 
 		function recalcGroup(group: ParticleGroup) {
@@ -249,7 +263,7 @@ export class Jello implements IDrawable, IPower {
 					state: particles[i].group.state,
 				};
 
-				if (active_group === group) {
+				if (activeGroup === group) {
 					activeGroupCandidates.push(newGroup);
 				}
 
@@ -292,13 +306,13 @@ export class Jello implements IDrawable, IPower {
 	private getSpringsPower() {
 		const {
 			particles,
-			k_spring_elastic,
-			k_spring_plastic,
-			spring_list,
+			kSpringStrong,
+			kSpringSoft,
+			springList,
 		} = this;
 
 		const springsPower = particles.map(() => zero);
-		let spring = spring_list.next;
+		let spring = springList.next;
 
 		while (spring) {
 			const {
@@ -306,7 +320,7 @@ export class Jello implements IDrawable, IPower {
 			} = spring;
 			const particle_i = particles[spring.i];
 
-			const powerMagnitude = (particle_i.group.state.type === Elastic ? k_spring_elastic : k_spring_plastic) * (rest_length - current_length);
+			const powerMagnitude = (particle_i.group.state.type === Elastic ? kSpringStrong : kSpringSoft) * (rest_length - current_length);
 			const power = mul(spring.unit_direction_to_j, powerMagnitude);
 
 			springsPower[j] = add(springsPower[j], power);
@@ -321,15 +335,15 @@ export class Jello implements IDrawable, IPower {
 	private removeTooStretchedSoftSprings(groupsToRecalc: Set<ParticleGroup>): void {
 		const {
 			particles,
-			max_soft_sprint_rest_length,
-			spring_list,
+			maxSpringRestLengthSoft,
+			springList,
 		} = this;
 
-		let spring = spring_list.next;
-		let prev = spring_list;
+		let spring = springList.next;
+		let prev = springList;
 
 		while (spring) {
-			if (spring.rest_length > max_soft_sprint_rest_length) {
+			if (spring.rest_length > maxSpringRestLengthSoft) {
 				const particle_i = particles[spring.i];
 				const particle_j = particles[spring.j];
 				particle_i.spring_ij.delete(spring.j);
@@ -351,14 +365,14 @@ export class Jello implements IDrawable, IPower {
 	private removeTooStretchedHardSprings(groupsToRecalc: Set<ParticleGroup>): void {
 		const {
 			particles,
-			strong_spring_particleCount,
-			strong_spring_max_length,
-			weak_spring_max_length,
-			spring_list,
+			maxStrongSpringParticleCount,
+			maxStrongSpringCurrentLength,
+			maxSoftSpringCurrentLength,
+			springList,
 		} = this;
 
-		let spring = spring_list.next;
-		let prev = spring_list;
+		let spring = springList.next;
+		let prev = springList;
 
 		while (spring) {
 			const particle_i = particles[spring.i];
@@ -366,7 +380,7 @@ export class Jello implements IDrawable, IPower {
 			const current_length = spring.current_length;
 
 			if (particle_i.group.state.type === Elastic) {
-				if ((current_length > strong_spring_max_length) || ((current_length > weak_spring_max_length) && ((particle_i.pt_springs < strong_spring_particleCount) || (particle_j.pt_springs < strong_spring_particleCount)))) {
+				if ((current_length > maxStrongSpringCurrentLength) || ((current_length > maxSoftSpringCurrentLength) && ((particle_i.pt_springs < maxStrongSpringParticleCount) || (particle_j.pt_springs < maxStrongSpringParticleCount)))) {
 					prev.next = spring.next;
 					particle_i.spring_ij.delete(spring.j);
 					spring = prev.next;
@@ -385,13 +399,13 @@ export class Jello implements IDrawable, IPower {
 	private addNewSprings(groupsToRecalc: Set<ParticleGroup>, neighborsData: NeighborsData): boolean {
 		const {
 			particles,
-			ptCount,
-			spring_list,
-			max_springs,
+			particlesCount,
+			springList,
+			maxParticleSpringsCount,
 		} = this;
 
 		let needRecalcGroups = false;
-		for (let i = 0; i < ptCount; i++) {
+		for (let i = 0; i < particlesCount; i++) {
 			const particle_i = particles[i];
 			const neighbors_i = neighborsData.neighbors[i];
 			const spring_ij_i = particle_i.spring_ij;
@@ -408,19 +422,19 @@ export class Jello implements IDrawable, IPower {
 				const particle_j = particles[j];
 
 				if (
-					//(!pt_state_i.frozen && pt_state_i.jelloState && (activeGroup_i || (particle_j.group === active_group))) || //слипание двух активных кусков/слипание активного и неактивного
+					//(!pt_state_i.frozen && pt_state_i.jelloState && (activeGroup_i || (particle_j.group === activeGroup))) || //слипание двух активных кусков/слипание активного и неактивного
 					((pt_state_i.type === Sticky) && (particle_j.group.state.type === Sticky))) { //слипание двух неактивных желе
-					if (!spring_ij_i.has(j) && (pt_springs_i < max_springs) && (particle_j.pt_springs < max_springs)) {
+					if (!spring_ij_i.has(j) && (pt_springs_i < maxParticleSpringsCount) && (particle_j.pt_springs < maxParticleSpringsCount)) {
 						const spring: Spring = {
 							i,
 							j,
-							next: spring_list.next,
+							next: springList.next,
 							unit_direction_to_j: unit_direction,
 							current_length: distance_between_particles,
 							rest_length: distance_between_particles,
 						};
 						spring_ij_i.set(j, spring);
-						spring_list.next = spring;
+						springList.next = spring;
 						pt_springs_i++;
 						particle_j.pt_springs++;
 						particle_j.group.state = {
@@ -448,10 +462,10 @@ export class Jello implements IDrawable, IPower {
 
 	private updateSpringsLengthsAndDirections(neighborsData: NeighborsData, positions: Vector[]) {
 		const {
-			spring_list,
+			springList,
 		} = this;
 
-		let spring = spring_list.next;
+		let spring = springList.next;
 		while (spring) {
 			const { i, j } = spring;
 
@@ -474,31 +488,27 @@ export class Jello implements IDrawable, IPower {
 	private updateSoftSpringsRestLength() {
 		const {
 			particles,
-			r_inv,
-			compress_speed,
-			compress_treshold,
-			stretch_speed,
-			stretch_treshold,
-			spring_list,
+			compressSpeedDivR,
+			compressTreshold,
+			stretchSpeedDivR,
+			stretchTreshold,
+			springList,
 		} = this;
 
-		const stretch_speed_div_r = r_inv * stretch_speed;
-		const compress_speed_div_r = r_inv * compress_speed;
-
-		let spring = spring_list.next;
+		let spring = springList.next;
 		while (spring) {
 			const { i } = spring;
 
 			if (particles[i].group.state.type === Sticky) {
 				const spring_length = spring.rest_length;
 				const distance_from_rest = spring.current_length - spring_length;
-				const current_stretch_treshold = spring_length * stretch_treshold;
+				const current_stretch_treshold = spring_length * stretchTreshold;
 				if (distance_from_rest > current_stretch_treshold) {
-					spring.rest_length += spring_length * stretch_speed_div_r * (distance_from_rest - current_stretch_treshold);
+					spring.rest_length += spring_length * stretchSpeedDivR * (distance_from_rest - current_stretch_treshold);
 				} else {
-					const current_compress_treshold = -spring_length * compress_treshold;
+					const current_compress_treshold = -spring_length * compressTreshold;
 					if (distance_from_rest < current_compress_treshold) {
-						spring.rest_length += spring_length * compress_speed_div_r * (distance_from_rest - current_compress_treshold);
+						spring.rest_length += spring_length * compressSpeedDivR * (distance_from_rest - current_compress_treshold);
 					}
 				}
 			}
@@ -510,14 +520,14 @@ export class Jello implements IDrawable, IPower {
 	private applyJelloPowers(neighbors: Neighbor[][]) {
 		const {
 			particles,
-			ptCount,
+			particlesCount,
 			Box2D,
 		} = this;
 
 		const sphPower = this.getSPHPower(neighbors);
 		const springsPower = this.getSpringsPower();
 
-		for (let i = 0; i < ptCount; i++) {
+		for (let i = 0; i < particlesCount; i++) {
 			const power = add(springsPower[i], sphPower[i]);
 			const body = particles[i].body;
 			asB2D(Box2D, power, v => body.ApplyForceToCenter(v, true));
@@ -543,9 +553,11 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
-	private applyCompressionPowerToGroups(positions: Vector[]) {
+	private applyCompressionPowerToInactiveGroups(positions: Vector[]) {
 		const {
 			particles,
+			activeGroup,
+			compressPower,
 		} = this;
 
 		const groups = new Set<ParticleGroup>();
@@ -554,15 +566,18 @@ export class Jello implements IDrawable, IPower {
 		}
 
 		for (const group of groups) {
-			this.applyCompressPowerToGroup(group, positions);
+			if (group === activeGroup) {
+				continue;
+			}
+
+			this.applyCompressPowerToGroup(group, positions, compressPower);
 		}
 	}
 
-	private applyCompressPowerToGroup(group: ParticleGroup, positions: Vector[]) {
+	private applyCompressPowerToGroup(group: ParticleGroup, positions: Vector[], compressPower: number) {
 		const {
 			particles,
 			Box2D,
-			compressPower,
 		} = this;
 
 		const groupCenter = this.getGroupCenter(group, positions);
@@ -603,6 +618,19 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
+	private applyPowerToAllParticlesByPosition(positions: Vector[], getPowerAt: (position: Vector) => Vector) {
+		const {
+			particles,
+			Box2D,
+		} = this;
+
+		for (const particle of particles) {
+			asB2D(Box2D, getPowerAt(positions[particle.index]), v => {
+				particle.body.ApplyForceToCenter(v, true);
+			});
+		}
+	}
+
 	private getGroupCenter(group: ParticleGroup, positions: Vector[]) {
 		let groupCenter = zero;
 
@@ -616,14 +644,14 @@ export class Jello implements IDrawable, IPower {
 	private getSPHPower(neighbors: Neighbor[][]) {
 		const {
 			particles,
-			ptCount,
+			particlesCount,
 		} = this;
 
 		const { press, press_near } = this.getPress(neighbors);
 
 		const result = particles.map(() => zero);
 
-		for (let i = 0; i < ptCount; i++) {
+		for (let i = 0; i < particlesCount; i++) {
 			const press_i = press[i];
 			const press_near_i = press_near[i];
 			const neighbors_i = neighbors[i];
@@ -654,14 +682,14 @@ export class Jello implements IDrawable, IPower {
 	private getPress(neighbors: Neighbor[][]) {
 		const {
 			k,
-			k_near,
-			rest_density,
+			kNear,
+			restDensity,
 		} = this;
 
 		const { ro, ro_near } = this.getRo(neighbors);
 
-		const press = ro.map(ro_i => k * (ro_i - rest_density));
-		const press_near = ro_near.map(ro_near_i => k_near * ro_near_i);
+		const press = ro.map(ro_i => k * (ro_i - restDensity));
+		const press_near = ro_near.map(ro_near_i => kNear * ro_near_i);
 
 		return {
 			press,
@@ -672,13 +700,13 @@ export class Jello implements IDrawable, IPower {
 	private getRo(neighbors: Neighbor[][]) {
 		const {
 			particles,
-			ptCount,
+			particlesCount,
 		} = this;
 
 		const ro = particles.map(() => 0);
 		const ro_near = particles.map(() => 0);
 
-		for (let i = 0; i < ptCount; i++) {
+		for (let i = 0; i < particlesCount; i++) {
 			const neighbors_i = neighbors[i];
 
 			let delta_ro_i = 0;
@@ -710,7 +738,7 @@ export class Jello implements IDrawable, IPower {
 
 	private applyVelocityChanges(neighbors: Neighbor[][]) {
 		const {
-			ptCount,
+			particlesCount,
 			particles,
 			Box2D,
 		} = this;
@@ -718,7 +746,7 @@ export class Jello implements IDrawable, IPower {
 		const velocities = this.getVelocities();
 		const delta_velocities = this.calculateVelocityChanges(neighbors, velocities);
 
-		for (let i = 0; i < ptCount; i++) {
+		for (let i = 0; i < particlesCount; i++) {
 			asB2D(Box2D, add(velocities[i], delta_velocities[i]), v => particles[i].body.SetLinearVelocity(v));
 		}
 	}
@@ -726,15 +754,15 @@ export class Jello implements IDrawable, IPower {
 	calculateVelocityChanges(neighbors: Neighbor[][], velocities: Vector[]) {
 		const {
 			particles,
-			ptCount,
-			viscosity_a,
-			viscosity_b,
-			max_collision_velocity,
+			particlesCount,
+			viscosityA,
+			viscosityB,
+			maxCollisionVelocity,
 		} = this;
 
 		const result = particles.map(() => zero);
 
-		for (let i = 0; i < ptCount; i++) {
+		for (let i = 0; i < particlesCount; i++) {
 			const velocity_i = velocities[i];
 			const neighbors_i = neighbors[i];
 
@@ -748,8 +776,8 @@ export class Jello implements IDrawable, IPower {
 				const collision_velocity = dot(sub(velocity_i, velocities[j]), unit_direction);
 				if (collision_velocity > 0) {
 					// TODO: do we really need clamping
-					const collision_velocity_clamped = Math.min(collision_velocity, max_collision_velocity);
-					const delta_velocity_ij = mul(unit_direction, q1 * (viscosity_a + viscosity_b * collision_velocity_clamped) * collision_velocity_clamped);
+					const collision_velocity_clamped = Math.min(collision_velocity, maxCollisionVelocity);
+					const delta_velocity_ij = mul(unit_direction, q1 * (viscosityA + viscosityB * collision_velocity_clamped) * collision_velocity_clamped);
 
 					delta_velocity_i = sub(delta_velocity_i, delta_velocity_ij);
 					result[j] = add(result[j], delta_velocity_ij);
@@ -768,9 +796,9 @@ export class Jello implements IDrawable, IPower {
 
 	private getNeighborsData(positions: Vector[]) {
 		const {
-			ptCount,
+			particlesCount,
 			particles,
-			min_neighbor_distance_squared,
+			minNeighborDistanceSquared,
 			r,
 			r_inv,
 			r2,
@@ -783,7 +811,7 @@ export class Jello implements IDrawable, IPower {
 
 		const pp = positions.map((p, index) => ({ p, index })).slice().sort((a, b) => a.p.x - b.p.x);
 
-		for (let a = 0; a < ptCount; a++) {
+		for (let a = 0; a < particlesCount; a++) {
 			const pp_a = pp[a];
 			const { x: x_a, y: y_a } = pp_a.p;
 			const index_a = pp_a.index;
@@ -791,7 +819,7 @@ export class Jello implements IDrawable, IPower {
 			const y_low_a = y_a - r;
 			const y_up_a = y_a + r;
 
-			for (let b = a + 1; b < ptCount; b++) {
+			for (let b = a + 1; b < particlesCount; b++) {
 				const pp_b = pp[b];
 				const { x: x_b, y: y_b } = pp_b.p;
 
@@ -816,7 +844,7 @@ export class Jello implements IDrawable, IPower {
 				const direction_to_j = sub(position_j, position_i);
 
 				const distance_between_particles_squared = len2(direction_to_j);
-				if (distance_between_particles_squared > r2 || distance_between_particles_squared < min_neighbor_distance_squared) {
+				if (distance_between_particles_squared > r2 || distance_between_particles_squared < minNeighborDistanceSquared) {
 					continue;
 				}
 
@@ -847,14 +875,14 @@ export class Jello implements IDrawable, IPower {
 	draw(ctx: CanvasRenderingContext2D): void {
 		const {
 			particles,
-			active_group,
-			spring_list
+			activeGroup,
+			springList
 		} = this;
 
-		let spring = spring_list.next;
+		let spring = springList.next;
 		while (spring) {
 			ctx.beginPath();
-			ctx.strokeStyle = (particles[spring.i].group === active_group) || (particles[spring.j].group === active_group) ? 'black' : 'lightgrey';
+			ctx.strokeStyle = (particles[spring.i].group === activeGroup) || (particles[spring.j].group === activeGroup) ? 'black' : 'lightgrey';
 			const p1 = particles[spring.i].body.GetPosition();
 			const p2 = particles[spring.j].body.GetPosition();
 			ctx.moveTo(p1.x, p1.y);
@@ -865,7 +893,7 @@ export class Jello implements IDrawable, IPower {
 
 		for (const particle of particles) {
 			const p = particle.body.GetPosition();
-			ctx.strokeStyle = (particle.group === active_group) ? 'red' : 'black';
+			ctx.strokeStyle = (particle.group === activeGroup) ? 'red' : 'black';
 			ctx.beginPath();
 			ctx.ellipse(p.x, p.y, 2, 2, 0, 0, 2 * Math.PI);
 			ctx.stroke();
@@ -885,7 +913,7 @@ export class Jello implements IDrawable, IPower {
 		// const r: number;
 		// const r1: Rectangle = new Rectangle(0, 0, 2 * this.imageRadius, 2 * this.imageRadius);
 		// pnt = new Point(0, 0);
-		// for (i = 0; i < this.ptCount; i++) {
+		// for (i = 0; i < this.particlesCount; i++) {
 		// 	p = particle.pt;
 		// 	pnt.x = particle.px - this.imageRadius + this.offsetX;
 		// 	pnt.y = particle.py - this.imageRadius + this.offsetY;
@@ -894,7 +922,7 @@ export class Jello implements IDrawable, IPower {
 		// const rect: Rectangle = new Rectangle(0, 0, w, h);
 		// bmp.threshold(bmp, rect, new Point(0, 0), "<", this.treshold);
 
-		/*for (i=0; i<ptCount; i++)
+		/*for (i=0; i<particlesCount; i++)
 		{
 			if(activeGroup[i])
 				bmp.setPixel(px[i]+offsetX,py[i]+offsetY,0xFF0000);
@@ -945,13 +973,13 @@ export class Jello implements IDrawable, IPower {
 	// 		const smallrsq: number = smallr * smallr;
 	// 		const sqrt: Function = Math.sqrt;
 
-	// 		for (i = 0; i < ptCount; i++)			//Переводим активные частички в новое состояние
+	// 		for (i = 0; i < particlesCount; i++)			//Переводим активные частички в новое состояние
 	// 			if (activeGroup[i])
 	// 				pt_state[i] = new_state;
 
 	// 		if (frozen)						//На всякий случай "ослабляем" короткие связи и укорачиваем длинные
 	// 		{
-	// 			spring = spring_list.next;
+	// 			spring = springList.next;
 	// 			while (spring) {
 	// 				i = spring.i;
 	// 				j = spring.j;
@@ -979,8 +1007,8 @@ export class Jello implements IDrawable, IPower {
 	// 			frozen = false;
 
 	// 			const prev: Spring;
-	// 			spring = spring_list.next;
-	// 			prev = spring_list;
+	// 			spring = springList.next;
+	// 			prev = springList;
 	// 			while (spring) {
 	// 				i = spring.i;
 	// 				j = spring.j;
@@ -995,14 +1023,14 @@ export class Jello implements IDrawable, IPower {
 	// 				prev = spring;
 	// 				spring = spring.next;
 	// 			}
-	// 			for (i = 0; i < ptCount; i++)			//Переводим активные частички в новое состояние
+	// 			for (i = 0; i < particlesCount; i++)			//Переводим активные частички в новое состояние
 	// 				if (activeGroup[i]) {
 	// 					pt_state[i] = 2;
 	// 					pt_springs[i] = 0;
 	// 				}
 	// 		}
 	// 		else {
-	// 			for (i = 0; i < ptCount; i++)			//Переводим активные частички в новое состояние
+	// 			for (i = 0; i < particlesCount; i++)			//Переводим активные частички в новое состояние
 	// 				if (activeGroup[i])
 	// 					pt_state[i] = 0;
 	// 		}
@@ -1021,5 +1049,3 @@ for (const particle of particles) {
 }
 cntr++;
 */
-
-let cntr = 0;
