@@ -18,18 +18,16 @@ type JelloArgs = {
 	readonly kNear: number;    	                    // Сила ближнего давления
 	readonly kSpringStrong: number;                 // Сила эластичных связей
 	readonly kSpringSoft: number;                   // Сила пластичных связей
-	readonly stretchSpeed: number;                  // Скорость растяжения связей
-	readonly stretchTreshold: number;               // Порог для растяжения связей
-	readonly compressSpeed: number;                 // Скорость сжатия связей
-	readonly compressTreshold: number;              // Порог для сжатия связей
+	readonly softSpringStretchSpeed: number;        // Скорость растяжения связей
+	readonly softSpringStretchTreshold: number;     // Порог для растяжения связей
+	readonly softSpringCompressSpeed: number;       // Скорость сжатия связей
+	readonly softSpringCompressTreshold: number;    // Порог для сжатия связей
 	readonly viscosityA: number;                    // Параметр трения 1
 	readonly viscosityB: number;                    // Параметр трения 2
 	readonly maxParticleSpringsCount: number;       // Максимальное число связей для вершины
 
-	readonly maxSpringRestLengthSoft: number;
-	readonly maxStrongSpringParticleCount: number;
-	readonly maxStrongSpringCurrentLength: number;
 	readonly maxSoftSpringCurrentLength: number;
+	readonly maxStrongSpringCurrentLength: number;
 	readonly minNeighborDistance: number;
 	readonly controlPower: number;
 	readonly compressPower: number;
@@ -46,40 +44,38 @@ export class Jello implements IDrawable, IPower {
 	readonly kNear: number;
 	readonly kSpringStrong: number;
 	readonly kSpringSoft: number;
-	readonly stretchSpeed: number;
-	readonly stretchTreshold: number;
-	readonly compressSpeed: number;
-	readonly compressTreshold: number;
+	readonly softSpringStretchSpeed: number;
+	readonly softSpringStretchTreshold: number;
+	readonly softSpringCompressSpeed: number;
+	readonly softSpringCompressTreshold: number;
 	readonly viscosityA: number;
 	readonly viscosityB: number;
 	readonly maxParticleSpringsCount: number;
 
 
-	readonly maxSpringRestLengthSoft: number;
-	readonly maxStrongSpringParticleCount: number;
-	readonly maxStrongSpringCurrentLength: number;
 	readonly maxSoftSpringCurrentLength: number;
+	readonly maxStrongSpringCurrentLength: number;
 	readonly minNeighborDistanceSquared: number;
 	readonly controlPower: number;
 	readonly compressPower: number;
 	readonly activeSpinningCompressPower: number;
 	readonly spinPower: number;
 	readonly maxCollisionVelocity: number;
-	
+
 	// Состояние
-	activeGroup: ParticleGroup;        // Активный кусок желе
+	activeGroup: ParticleGroup;         // Активный кусок желе
 
 	readonly particlesCount: number;    // Количество частиц
 	readonly particles: Particle[];
 	readonly springList: Spring;        // Связный список активных связей
-	
+
 	// Просчитанные заранее данные
 	readonly r2: number;			    // Квадрат радиуса
 	readonly r_inv: number;			    // Обратный радиус
 	readonly r_inv_half: number;		// Половина обратного радиуса
 
-	readonly stretchSpeedDivR: number;
-	readonly compressSpeedDivR: number;
+	readonly softSpringStretchSpeedDivR: number;
+	readonly softSpringCompressSpeedDivR: number;
 
 
 	// ========================================================== //
@@ -93,31 +89,29 @@ export class Jello implements IDrawable, IPower {
 		this.kNear = args.kNear;
 		this.kSpringStrong = args.kSpringStrong;
 		this.kSpringSoft = args.kSpringSoft;
-		this.stretchSpeed = args.stretchSpeed;
-		this.stretchTreshold = args.stretchTreshold;
-		this.compressSpeed = args.compressSpeed;
-		this.compressTreshold = args.compressTreshold;
+		this.softSpringStretchSpeed = args.softSpringStretchSpeed;
+		this.softSpringStretchTreshold = args.softSpringStretchTreshold;
+		this.softSpringCompressSpeed = args.softSpringCompressSpeed;
+		this.softSpringCompressTreshold = args.softSpringCompressTreshold;
 		this.viscosityA = args.viscosityA;
 		this.viscosityB = args.viscosityB;
 		this.maxParticleSpringsCount = args.maxParticleSpringsCount;
-		this.maxSpringRestLengthSoft = args.maxSpringRestLengthSoft;
-		this.maxStrongSpringParticleCount = args.maxStrongSpringParticleCount;
-		this.maxStrongSpringCurrentLength = args.maxStrongSpringCurrentLength;
 		this.maxSoftSpringCurrentLength = args.maxSoftSpringCurrentLength;
+		this.maxStrongSpringCurrentLength = args.maxStrongSpringCurrentLength;
 		this.controlPower = args.controlPower;
 		this.compressPower = args.compressPower;
 		this.spinPower = args.spinPower;
 		this.maxCollisionVelocity = args.maxCollisionVelocity;
 		this.activeSpinningCompressPower = args.activeSpinningCompressPower;
 
-		const { r, minNeighborDistance, stretchSpeed, compressSpeed } = args;
+		const { r, minNeighborDistance, softSpringStretchSpeed, softSpringCompressSpeed } = args;
 
 		this.minNeighborDistanceSquared = minNeighborDistance * minNeighborDistance;
 		this.r2 = r * r;
 		this.r_inv = 1 / r;
 		this.r_inv_half = 0.5 / r;
-		this.stretchSpeedDivR = stretchSpeed / r;
-		this.compressSpeedDivR = compressSpeed / r;
+		this.softSpringStretchSpeedDivR = softSpringStretchSpeed / r;
+		this.softSpringCompressSpeedDivR = softSpringCompressSpeed / r;
 
 		this.springList = {
 			i: -1,
@@ -149,7 +143,7 @@ export class Jello implements IDrawable, IPower {
 		this.activeGroup = this.particles[0].group;
 	}
 
-	applyForces(controls: Controls): void {
+	applyForces(controls: Controls, dt: number): void {
 		const {
 			activeGroup,
 		} = this;
@@ -159,7 +153,7 @@ export class Jello implements IDrawable, IPower {
 		const neighborsData = this.getNeighborsData(positions);
 
 		this.updateSpringsLengthsAndDirections(neighborsData, positions);
-		this.updateSoftSpringsRestLength();
+		this.updateSoftSpringsRestLength(dt);
 
 		const groupsToRecalc = new Set<ParticleGroup>();
 		this.removeTooStretchedSoftSprings(groupsToRecalc);
@@ -174,11 +168,11 @@ export class Jello implements IDrawable, IPower {
 
 		this.applyCompressionPowerToInactiveGroups(positions);
 
-		if (controls.spins) {
-			this.applySpinningPowerToGroup(activeGroup, positions);
-			this.applyCompressPowerToGroup(activeGroup, positions, this.activeSpinningCompressPower);
-		} else {
+		if (controls.spins === 'none') {
 			this.applyCompressPowerToGroup(activeGroup, positions, this.compressPower);
+		} else {
+			this.applySpinningPowerToGroup(activeGroup, positions, controls.spins === 'left' ? 1 : -1);
+			this.applyCompressPowerToGroup(activeGroup, positions, this.activeSpinningCompressPower);
 		}
 
 		if ((controls.left && !controls.right) || (controls.right && !controls.left)
@@ -330,38 +324,6 @@ export class Jello implements IDrawable, IPower {
 	private removeTooStretchedSoftSprings(groupsToRecalc: Set<ParticleGroup>): void {
 		const {
 			particles,
-			maxSpringRestLengthSoft,
-			springList,
-		} = this;
-
-		let spring = springList.next;
-		let prev = springList;
-
-		while (spring) {
-			if (spring.rest_length > maxSpringRestLengthSoft) {
-				const particle_i = particles[spring.i];
-				const particle_j = particles[spring.j];
-				particle_i.spring_ij.delete(spring.j);
-				particle_i.pt_springs--;
-				particle_j.pt_springs--;
-				groupsToRecalc.add(particle_i.group);
-
-				prev.next = spring.next;
-				spring = prev.next;
-
-				continue;
-			}
-
-			prev = spring;
-			spring = spring.next;
-		}
-	}
-
-	private removeTooStretchedHardSprings(groupsToRecalc: Set<ParticleGroup>): void {
-		const {
-			particles,
-			maxStrongSpringParticleCount,
-			maxStrongSpringCurrentLength,
 			maxSoftSpringCurrentLength,
 			springList,
 		} = this;
@@ -374,16 +336,50 @@ export class Jello implements IDrawable, IPower {
 			const particle_j = particles[spring.j];
 			const current_length = spring.current_length;
 
-			if (particle_i.group.state.type === Elastic) {
-				if ((current_length > maxStrongSpringCurrentLength) || ((current_length > maxSoftSpringCurrentLength) && ((particle_i.pt_springs < maxStrongSpringParticleCount) || (particle_j.pt_springs < maxStrongSpringParticleCount)))) {
-					prev.next = spring.next;
-					particle_i.spring_ij.delete(spring.j);
-					spring = prev.next;
-					particle_i.pt_springs--;
-					particle_j.pt_springs--;
-					groupsToRecalc.add(particle_i.group);
-					continue;
-				}
+			if (
+				particle_i.group.state.type === Sticky &&
+				current_length > maxSoftSpringCurrentLength
+			) {
+				prev.next = spring.next;
+				particle_i.spring_ij.delete(spring.j);
+				spring = prev.next;
+				particle_i.pt_springs--;
+				particle_j.pt_springs--;
+				groupsToRecalc.add(particle_i.group);
+				continue;
+			}
+
+			prev = spring;
+			spring = spring.next;
+		}
+	}
+
+	private removeTooStretchedHardSprings(groupsToRecalc: Set<ParticleGroup>): void {
+		const {
+			particles,
+			maxStrongSpringCurrentLength,
+			springList,
+		} = this;
+
+		let spring = springList.next;
+		let prev = springList;
+
+		while (spring) {
+			const particle_i = particles[spring.i];
+			const particle_j = particles[spring.j];
+			const current_length = spring.current_length;
+
+			if (
+				particle_i.group.state.type === Elastic &&
+				current_length > maxStrongSpringCurrentLength
+			) {
+				prev.next = spring.next;
+				particle_i.spring_ij.delete(spring.j);
+				spring = prev.next;
+				particle_i.pt_springs--;
+				particle_j.pt_springs--;
+				groupsToRecalc.add(particle_i.group);
+				continue;
 			}
 
 			prev = spring;
@@ -397,6 +393,7 @@ export class Jello implements IDrawable, IPower {
 			particlesCount,
 			springList,
 			maxParticleSpringsCount,
+			activeGroup,
 		} = this;
 
 		let needRecalcGroups = false;
@@ -407,7 +404,9 @@ export class Jello implements IDrawable, IPower {
 			const group_i = particle_i.group;
 
 			let pt_springs_i = particle_i.pt_springs;
-			let pt_state_i = particle_i.group.state;
+			let pt_state_i = group_i.state;
+			const sticky_i = pt_state_i.type === Sticky;
+			const active_sticky_i = sticky_i && (group_i === activeGroup);
 
 			for (const neighbor of neighbors_i) {
 				const {
@@ -415,35 +414,37 @@ export class Jello implements IDrawable, IPower {
 				} = neighbor;
 
 				const particle_j = particles[j];
+				const group_j = particle_j.group;
+				const sticky_j = group_j.state.type === Sticky;
 
 				if (
-					//(!pt_state_i.frozen && pt_state_i.jelloState && (activeGroup_i || (particle_j.group === activeGroup))) || //слипание двух активных кусков/слипание активного и неактивного
-					((pt_state_i.type === Sticky) && (particle_j.group.state.type === Sticky))) { //слипание двух неактивных желе
-					if (!spring_ij_i.has(j) && (pt_springs_i < maxParticleSpringsCount) && (particle_j.pt_springs < maxParticleSpringsCount)) {
-						const spring: Spring = {
-							i,
-							j,
-							next: springList.next,
-							unit_direction_to_j: unit_direction,
-							current_length: distance_between_particles,
-							rest_length: distance_between_particles,
-						};
-						spring_ij_i.set(j, spring);
-						springList.next = spring;
-						pt_springs_i++;
-						particle_j.pt_springs++;
-						particle_j.group.state = {
-							...particle_j.group.state,
-							type: Sticky
-						};
+					(active_sticky_i || (sticky_j && group_j === activeGroup) || (sticky_i && sticky_j))
+					&& (!spring_ij_i.has(j) && (pt_springs_i < maxParticleSpringsCount) && (particle_j.pt_springs < maxParticleSpringsCount))
+				) {
+					const spring: Spring = {
+						i,
+						j,
+						next: springList.next,
+						unit_direction_to_j: unit_direction,
+						current_length: distance_between_particles,
+						rest_length: distance_between_particles,
+					};
+					spring_ij_i.set(j, spring);
+					springList.next = spring;
+					pt_springs_i++;
+					particle_j.pt_springs++;
+
+					if (group_i !== particle_j.group) {
 						pt_state_i = {
 							...pt_state_i,
 							type: Sticky
 						};
-						if (group_i !== particle_j.group) {
-							groupsToRecalc.add(group_i);
-							groupsToRecalc.add(particle_j.group);
-						}
+						particle_j.group.state = {
+							...particle_j.group.state,
+							type: Sticky
+						};
+						groupsToRecalc.add(group_i);
+						groupsToRecalc.add(particle_j.group);
 					}
 				}
 			}
@@ -480,15 +481,18 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
-	private updateSoftSpringsRestLength() {
+	private updateSoftSpringsRestLength(dt: number) {
 		const {
 			particles,
-			compressSpeedDivR,
-			compressTreshold,
-			stretchSpeedDivR,
-			stretchTreshold,
+			softSpringCompressSpeedDivR,
+			softSpringCompressTreshold,
+			softSpringStretchSpeedDivR,
+			softSpringStretchTreshold,
 			springList,
 		} = this;
+
+		const softSpringStretchSpeedDivRMulDT = dt * softSpringStretchSpeedDivR;
+		const softSpringCompressSpeedDivRMulDT = dt * softSpringCompressSpeedDivR;
 
 		let spring = springList.next;
 		while (spring) {
@@ -497,13 +501,13 @@ export class Jello implements IDrawable, IPower {
 			if (particles[i].group.state.type === Sticky) {
 				const spring_length = spring.rest_length;
 				const distance_from_rest = spring.current_length - spring_length;
-				const current_stretch_treshold = spring_length * stretchTreshold;
+				const current_stretch_treshold = spring_length * softSpringStretchTreshold;
 				if (distance_from_rest > current_stretch_treshold) {
-					spring.rest_length += spring_length * stretchSpeedDivR * (distance_from_rest - current_stretch_treshold);
+					spring.rest_length += spring_length * softSpringStretchSpeedDivRMulDT * (distance_from_rest - current_stretch_treshold);
 				} else {
-					const current_compress_treshold = -spring_length * compressTreshold;
+					const current_compress_treshold = -spring_length * softSpringCompressTreshold;
 					if (distance_from_rest < current_compress_treshold) {
-						spring.rest_length += spring_length * compressSpeedDivR * (distance_from_rest - current_compress_treshold);
+						spring.rest_length += spring_length * softSpringCompressSpeedDivRMulDT * (distance_from_rest - current_compress_treshold);
 					}
 				}
 			}
@@ -529,18 +533,20 @@ export class Jello implements IDrawable, IPower {
 		}
 	}
 
-	private applySpinningPowerToGroup(group: ParticleGroup, positions: Vector[]) {
+	private applySpinningPowerToGroup(group: ParticleGroup, positions: Vector[], scale: number) {
 		const {
 			particles,
 			Box2D,
 			spinPower,
 		} = this;
 
+		const k = spinPower * scale;
+
 		const groupCenter = this.getGroupCenter(group, positions);
 
 		for (const particleIndex of group.particles) {
 			const d = sub(groupCenter, positions[particleIndex]);
-			const power = mul({ x: d.y, y: -d.x }, spinPower);
+			const power = mul({ x: d.y, y: -d.x }, k);
 
 			asB2D(Box2D, power, v => {
 				particles[particleIndex].body.ApplyForceToCenter(v, true);

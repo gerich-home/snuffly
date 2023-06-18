@@ -1,5 +1,5 @@
 import './App.css';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBox2D } from './useBox2D';
 import { TestLevel } from './TestLevel';
 import { type GravitySensor as GravitySensorType } from 'motion-sensors-polyfill';
@@ -13,8 +13,8 @@ const height = window.innerHeight;
 const isMobile = (width * height < 800 * 800);
 
 function App() {
-
-  const [spins, setSpins] = useState(false);
+  const [spinsLeft, setSpinsLeft] = useState(false);
+  const [spinsRight, setSpinsRight] = useState(false);
   const [left, setLeft] = useState(false);
   const [right, setRight] = useState(false);
   const [up, setUp] = useState(false);
@@ -26,6 +26,18 @@ function App() {
   const [gx, setGx] = useState(0);
   const [gy, setGy] = useState(0);
 
+  const keyMap: { [code: string]: (value: boolean) => void } = useMemo(() => ({
+    'KeyA': setLeft,
+    'KeyD': setRight,
+    'ArrowLeft': setSpinsRight,
+    'ArrowRight': setSpinsLeft,
+    'KeyW': setUp,
+    'KeyS': setDown,
+    'KeyE': setTurnElastic,
+    'KeyF': setTurnFluid,
+    'KeyJ': setTurnJello,
+  }), []);
+
   const onTouchStart = () => {
     setTouch(true);
   };
@@ -34,59 +46,19 @@ function App() {
     setTouch(false);
   };
 
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.code === 'Space') {
-      setSpins(true);
+  const onKeyDown = useCallback((event: KeyboardEvent) => {
+    const handler = keyMap[event.code];
+    if (handler) {
+      handler(true);
     }
-    if (event.code === 'ArrowLeft') {
-      setLeft(true);
-    }
-    if (event.code === 'ArrowRight') {
-      setRight(true);
-    }
-    if (event.code === 'ArrowUp') {
-      setUp(true);
-    }
-    if (event.code === 'ArrowDown') {
-      setDown(true);
-    }
-    if (event.code === 'KeyE') {
-      setTurnElastic(true);
-    }
-    if (event.code === 'KeyF') {
-      setTurnFluid(true);
-    }
-    if (event.code === 'KeyJ') {
-      setTurnJello(true);
-    }
-  };
+  }, [keyMap]);
 
-  const onKeyUp = (event: KeyboardEvent) => {
-    if (event.code === 'Space') {
-      setSpins(false);
+  const onKeyUp = useCallback((event: KeyboardEvent) => {
+    const handler = keyMap[event.code];
+    if (handler) {
+      handler(false);
     }
-    if (event.code === 'ArrowLeft') {
-      setLeft(false);
-    }
-    if (event.code === 'ArrowRight') {
-      setRight(false);
-    }
-    if (event.code === 'ArrowUp') {
-      setUp(false);
-    }
-    if (event.code === 'ArrowDown') {
-      setDown(false);
-    }
-    if (event.code === 'KeyE') {
-      setTurnElastic(false);
-    }
-    if (event.code === 'KeyF') {
-      setTurnFluid(false);
-    }
-    if (event.code === 'KeyJ') {
-      setTurnJello(false);
-    }
-  };
+  }, [keyMap]);
 
   useEffect(() => {
     window.addEventListener("keydown", onKeyDown);
@@ -94,7 +66,7 @@ function App() {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [onKeyDown]);
 
   useEffect(() => {
     window.addEventListener("keyup", onKeyUp);
@@ -102,7 +74,7 @@ function App() {
     return () => {
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, []);
+  }, [onKeyUp]);
 
 
   useEffect(() => {
@@ -151,7 +123,11 @@ function App() {
     const gravityScale = 0.5 / 9.8;
 
     const controls: Controls = {
-      spins: (spins || touch),
+      spins: touch ? 'left' : (
+        (spinsLeft === spinsRight) ?
+          'none' :
+          (spinsRight ? 'right' : 'left')
+      ),
       down,
       left,
       right,
@@ -166,7 +142,7 @@ function App() {
     };
 
     return controls;
-  }, [spins, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy]);
+  }, [spinsLeft, spinsRight, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy]);
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
 
@@ -250,7 +226,16 @@ function App() {
   }, [canvas]);
 
   return (
-    <canvas ref={canvasRef} />
+    <>
+      <div style={{ position: 'absolute', animation: 'fadeOut 7s', animationFillMode: 'forwards' }}>
+        <div>space - spin jello</div>
+        <div>arrows - move jello</div>
+        <div>E - make elastic & non-sticky</div>
+        <div>J - make plastic</div>
+        <div>ctrl - relax</div>
+      </div>
+      <canvas ref={canvasRef} />
+    </>
   );
 }
 

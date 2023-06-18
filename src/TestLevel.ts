@@ -102,24 +102,22 @@ export class TestLevel {
 			k: 0.02,
 			kNear: 2,
 			kSpringStrong: 0.1,
-			kSpringSoft: 0.2,
-			maxSoftSpringCurrentLength: 3 * r,
-			stretchSpeed: 0.3,
-			stretchTreshold: 0,
-			compressSpeed: 0.5,
-			compressTreshold: 0.2,
+			kSpringSoft: 0.02,
+			softSpringStretchSpeed: 0.1,
+			softSpringStretchTreshold: 0.5,
+			softSpringCompressSpeed: 3,
+			softSpringCompressTreshold: 0.2,
 			viscosityA: 0.5,
 			viscosityB: 0.01,
 			maxParticleSpringsCount: 15,
-			maxSpringRestLengthSoft: 1.3 * r,
 			controlPower: 0.2,
-			compressPower: 0.02,
+			compressPower: 0.01,
 			activeSpinningCompressPower: 0.002,
 			spinPower: 0.005,
-			maxStrongSpringParticleCount: 5,
-			maxStrongSpringCurrentLength: 4 * r,
 			maxCollisionVelocity: 100,
 			minNeighborDistance: 0.01,
+			maxSoftSpringCurrentLength: 1.2 * r,
+			maxStrongSpringCurrentLength: 2 * r,
 		});
 	}
 
@@ -289,15 +287,14 @@ export class TestLevel {
 		const timeDiff = Math.min(newCurrentTime - this.currentTime, frameTimeMs * 10);
 
 		const numSteps = 10;
-		const dt = timeDiff / numSteps;
-
+		const dt = 0.01 * timeDiff / numSteps;
 
 		for (let step = 0; step < numSteps; step++) {
 			for (const power of this.powers) {
-				power.applyForces(controls);
+				power.applyForces(controls, dt);
 			}
 
-			this.world.Step(0.01 * dt, this.velocityIterations, this.positionIterations);
+			this.world.Step(dt, this.velocityIterations, this.positionIterations);
 		}
 
 		this.currentTime = newCurrentTime;
