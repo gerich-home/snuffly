@@ -418,9 +418,10 @@ export class Jello implements IDrawable, IPower {
 				const particle_j = particles[j];
 				const group_j = particle_j.group;
 				const sticky_j = group_j.state.type === Sticky;
+				const active_sticky_j = sticky_j && group_j === activeGroup;
 
 				if (
-					(active_sticky_i || (sticky_j && group_j === activeGroup) || (sticky_i && sticky_j))
+					(active_sticky_i || active_sticky_j || (sticky_i && sticky_j))
 					&& (!spring_ij_i.has(j) && (pt_springs_i < maxParticleSpringsCount) && (particle_j.pt_springs < maxParticleSpringsCount))
 				) {
 					const spring: Spring = {
@@ -437,14 +438,18 @@ export class Jello implements IDrawable, IPower {
 					particle_j.pt_springs++;
 
 					if (group_i !== particle_j.group) {
-						pt_state_i = {
-							...pt_state_i,
-							type: Sticky
-						};
-						particle_j.group.state = {
-							...particle_j.group.state,
-							type: Sticky
-						};
+						if (active_sticky_j) {
+							pt_state_i = {
+								...pt_state_i,
+								type: Sticky
+							};
+						}
+						if (active_sticky_i) {
+							particle_j.group.state = {
+								...particle_j.group.state,
+								type: Sticky
+							};
+						}
 						groupsToRecalc.add(group_i);
 						groupsToRecalc.add(particle_j.group);
 					}
