@@ -1,10 +1,9 @@
-﻿import { AABB, Body, BodyDef, Box2D, CircleShape, World } from "./Box2D";
-import { CMCalculator } from "./CMCalculator";
+﻿import { Body, Box2D, World } from "./Box2D";
 import { Jello } from "./Jello";
 import { IDrawable } from "./core/IDrawable";
 import { Controls, IPower } from "./core/IPower";
+import { scale } from "./scale";
 
-const b2r = 8;
 
 export class TestLevel {
 	readonly world: World;
@@ -13,6 +12,7 @@ export class TestLevel {
 	readonly velocityIterations = 2;
 	readonly positionIterations = 2;
 	readonly stepsPerDrawFrame = 10;
+	readonly particleRadius = 8 / scale;
 	currentTime: number = 0;
 
 	constructor(
@@ -59,33 +59,34 @@ export class TestLevel {
 	createJello(Box2D: Box2D, world: World): Jello {
 		const particles: Body[] = [];
 
-		const count: number = 100;
-		const r: number = 25;
-		const m: number = 0.01;
-		const friction: number = 1;
-		const restitution: number = 0.1;
-		const restDensity: number = 1;
+		const count = 100;
+		const r = 25 / scale;
+		const particleMass = 0.01;
+		const friction = 1;
+		const restitution = 0.1;
+		const restDensity = 1;
 
-		const density: number = m / (Math.PI * b2r * b2r);
+		const {particleRadius} = this;
+
+		const jelloDensity = particleMass / (Math.PI * particleRadius * particleRadius);
 		//let bmp1: BitmapData = FluidParticle.drawBubble(1.5 * r, 0xFFEE00);
 		//let bmp2: BitmapData = FluidParticle.drawBubble(1.5 * r, 0xFF7700);
 
 		for (let i = 0; i < count; i++) {
 			const bodyDef = new Box2D.b2BodyDef();
 			bodyDef.fixedRotation = true;
-			//bodyDef.userData = ((unumber(Math.random() * 2) === 0) ? bmp1 : bmp2);
-			bodyDef.position.x = b2r + (this.width - 2 * b2r) * Math.random();
-			bodyDef.position.y = b2r + (this.height - 2 * b2r) * Math.random();
+			bodyDef.position.x = particleRadius + (this.width - 2 * particleRadius) * Math.random();
+			bodyDef.position.y = particleRadius + (this.height - 2 * particleRadius) * Math.random();
 			bodyDef.type = 2;
 
 			const circleDef = new Box2D.b2CircleShape();
-			circleDef.m_radius = b2r;
+			circleDef.m_radius = particleRadius;
 
 			const circleFixtureDef = new Box2D.b2FixtureDef();
 
 			circleFixtureDef.shape = circleDef;
 			circleFixtureDef.friction = friction;
-			circleFixtureDef.density = density;
+			circleFixtureDef.density = jelloDensity;
 			circleFixtureDef.restitution = restitution;
 			circleFixtureDef.filter.groupIndex = -1;		//игнорируем другие частицы
 
@@ -99,23 +100,23 @@ export class TestLevel {
 			particles,
 			r,
 			restDensity,
-			k: 0.02,
-			kNear: 2,
+			k: 0.02 / scale,
+			kNear: 2 / scale,
 			kSpringStrong: 0.1,
 			kSpringSoft: 0.02,
 			softSpringStretchSpeed: 0.1,
-			softSpringStretchTreshold: 0.5,
+			softSpringStretchTreshold: 0.5 / scale,
 			softSpringCompressSpeed: 3,
-			softSpringCompressTreshold: 0.2,
+			softSpringCompressTreshold: 0.2 / scale,
 			viscosityA: 0.5,
 			viscosityB: 0.01,
 			maxParticleSpringsCount: 15,
-			controlPower: 0.2,
+			controlPower: 0.2 / scale,
 			compressPower: 0.01,
 			activeSpinningCompressPower: 0.002,
 			spinPower: 0.003,
-			maxCollisionVelocity: 100,
-			minNeighborDistance: 0.01,
+			maxCollisionVelocity: 100 / scale,
+			minNeighborDistance: 0.01 / scale,
 			maxSoftSpringCurrentLength: 1.2 * r,
 			maxStrongSpringCurrentLength: 2 * r,
 		});
@@ -125,7 +126,7 @@ export class TestLevel {
 	private createBox2DWorld(Box2D: Box2D): World {
 		const gravity = this.isMobile ?
 			new Box2D.b2Vec2(0, 0) :
-			new Box2D.b2Vec2(0, 6);
+			new Box2D.b2Vec2(0, 9 / scale);
 
 		const world = new Box2D.b2World(gravity);
 
@@ -133,14 +134,16 @@ export class TestLevel {
 
 		let i: number;
 
-		const wall_size = 10;
+		const wall_size = 10 / scale;
+		
+		const {particleRadius: particleRadiusInMeters} = this;
 
 		{
-			//Земля
+			// Левая стена
 			const bodyDef = new Box2D.b2BodyDef();
 			const boxDef = new Box2D.b2PolygonShape();
-			bodyDef.position.Set(-wall_size, -wall_size);
-			boxDef.SetAsBox(wall_size, this.height + 2 * wall_size);
+			bodyDef.position.Set(-wall_size - particleRadiusInMeters, this.height / 2);
+			boxDef.SetAsBox(wall_size, this.height / 2 + wall_size);
 			const boxFixtureDef = new Box2D.b2FixtureDef();
 			boxFixtureDef.shape = boxDef;
 			boxFixtureDef.friction = 0.5;
@@ -149,25 +152,11 @@ export class TestLevel {
 			body.CreateFixture(boxFixtureDef);
 		}
 		{
-			//Земля
+			// Потолок
 			const bodyDef = new Box2D.b2BodyDef();
 			const boxDef = new Box2D.b2PolygonShape();
-			bodyDef.position.Set(-wall_size, -wall_size);
-			boxDef.SetAsBox(this.width + 2 * wall_size, wall_size);
-			const boxFixtureDef = new Box2D.b2FixtureDef();
-			boxFixtureDef.shape = boxDef;
-			boxFixtureDef.friction = 0.5;
-			boxFixtureDef.density = 0;
-			const body = world.CreateBody(bodyDef);
-			body.CreateFixture(boxFixtureDef);
-		}
-
-		{
-			//Земля
-			const bodyDef = new Box2D.b2BodyDef();
-			const boxDef = new Box2D.b2PolygonShape();
-			bodyDef.position.Set(-wall_size, this.height);
-			boxDef.SetAsBox(this.width + 2 * wall_size, wall_size);
+			bodyDef.position.Set(this.width / 2, -wall_size - particleRadiusInMeters);
+			boxDef.SetAsBox(this.width / 2 + wall_size, wall_size);
 			const boxFixtureDef = new Box2D.b2FixtureDef();
 			boxFixtureDef.shape = boxDef;
 			boxFixtureDef.friction = 0.5;
@@ -177,11 +166,11 @@ export class TestLevel {
 		}
 
 		{
-			//Земля
+			// Правая стена
 			const bodyDef = new Box2D.b2BodyDef();
 			const boxDef = new Box2D.b2PolygonShape();
-			bodyDef.position.Set(this.width, -wall_size);
-			boxDef.SetAsBox(wall_size, this.height + 2 * wall_size);
+			bodyDef.position.Set(this.width + wall_size + particleRadiusInMeters, this.height / 2);
+			boxDef.SetAsBox(wall_size, this.height / 2 + wall_size);
 			const boxFixtureDef = new Box2D.b2FixtureDef();
 			boxFixtureDef.shape = boxDef;
 			boxFixtureDef.friction = 0.5;
@@ -190,91 +179,19 @@ export class TestLevel {
 			body.CreateFixture(boxFixtureDef);
 		}
 
-		// SG
-		// bodyDef = new b2BodyDef();
-		// bodyDef.position.Set(-1 * pixelScale, 6 * pixelScale);
-		// boxDef = new b2PolygonDef();
-		// boxDef.SetAsBox(209/*30*pixelScale*/, 55/*3*pixelScale*/);
-		// boxDef.friction = 0.5;
-		// boxDef.density = 0;
-		// //bodyDef.userData = new Wall();
-		// //bodyDef.userData.width = 418;
-		// //bodyDef.userData.height = 110;
-		// //bodyDef.userData.x = -1 * pixelScale;
-		// //bodyDef.userData.y = 6 * pixelScale;
-		// container.addChild(bodyDef.userData);
-		// body = world.CreateBody(bodyDef);
-		// body.CreateShape(boxDef);
-		// body.SetMassFromShapes();
-
-
-		// SG
-		// bodyDef = new b2BodyDef();
-		// bodyDef.position.Set(17 * pixelScale, -3 * pixelScale);
-		// boxDef = new b2PolygonDef();
-		// boxDef.SetAsBox(209/*30*pixelScale*/, 55/*3*pixelScale*/);
-		// boxDef.friction = 0.5;
-		// boxDef.density = 0;
-		// bodyDef.userData = new Wall();
-		// bodyDef.userData.width = 418;
-		// bodyDef.userData.height = 110;
-		// bodyDef.userData.x = 17 * pixelScale;
-		// bodyDef.userData.y = -3 * pixelScale;
-		// container.addChild(bodyDef.userData);
-		// body = world.CreateBody(bodyDef);
-		// body.CreateShape(boxDef);
-		// body.SetMassFromShapes();
-
-		// SG
-		// let sizeX: number;
-		// let sizeY: number;
-		// for (i = 0; i < 2; i++) {
-		// 	bodyDef = new b2BodyDef();
-		// 	sizeX = (Math.random() + 0.5) * pixelScale;
-		// 	sizeY = (Math.random() + 0.5) * pixelScale;
-		// 	bodyDef.position.x = (Math.random() * 15 + 5) * pixelScale;
-		// 	bodyDef.position.y = (Math.random() * 10) * pixelScale - sizeY - 128;
-		// 	bodyDef.angle = Math.random() * 2 * Math.PI;
-		// 	boxDef = new b2PolygonDef();
-		// 	boxDef.SetAsBox(sizeX, sizeY);
-		// 	boxDef.density = 0.08 / (pixelScale * pixelScale);
-		// 	boxDef.friction = 0.5;
-		// 	boxDef.restitution = 0.2;
-		// 	bodyDef.userData = new Box();
-		// 	bodyDef.userData.width = sizeX * 2;
-		// 	bodyDef.userData.height = sizeY * 2;
-		// 	container.addChild(bodyDef.userData);
-		// 	body = world.CreateBody(bodyDef);
-		// 	body.CreateShape(boxDef);
-		// 	body.SetMassFromShapes();
-		// 	dynamicBodies.push(body);
-		// }
-
-		// SG
-		// //Мячи
-		// let r: number;
-		// for (i = 0; i < 2; i++) {
-		// 	bodyDef = new b2BodyDef();
-		// 	r = (Math.random() + 0.5) * pixelScale;
-		// 	bodyDef.position.x = (Math.random() * 15 + 5) * pixelScale;
-		// 	bodyDef.position.y = (Math.random() * 10) * pixelScale - r - 128;
-		// 	bodyDef.angle = Math.random() * 2 * Math.PI;
-		// 	circleDef = new b2CircleDef();
-		// 	circleDef.radius = r;
-		// 	circleDef.density = 0.03 / (pixelScale * pixelScale);
-		// 	circleDef.friction = 0.5;
-		// 	circleDef.restitution = 0.2;
-		// 	bodyDef.userData = new Ball();
-		// 	bodyDef.userData.width = r * 2;
-		// 	bodyDef.userData.height = r * 2;
-		// 	container.addChild(bodyDef.userData);
-		// 	body = world.CreateBody(bodyDef);
-		// 	body.CreateShape(circleDef);
-		// 	body.SetMassFromShapes();
-		// 	dynamicBodies.push(body);
-		// }
-		// dynamicBodiesGroup = new ParticleGroup(dynamicBodies);
-		// addDrawable(new BodyDrawerXYRot(dynamicBodiesGroup));
+		{
+			// Пол
+			const bodyDef = new Box2D.b2BodyDef();
+			const boxDef = new Box2D.b2PolygonShape();
+			bodyDef.position.Set(this.width / 2, this.height + wall_size + particleRadiusInMeters);
+			boxDef.SetAsBox(this.width / 2 + wall_size, wall_size);
+			const boxFixtureDef = new Box2D.b2FixtureDef();
+			boxFixtureDef.shape = boxDef;
+			boxFixtureDef.friction = 0.5;
+			boxFixtureDef.density = 0;
+			const body = world.CreateBody(bodyDef);
+			body.CreateFixture(boxFixtureDef);
+		}
 
 		return world;
 	}
@@ -283,7 +200,7 @@ export class TestLevel {
 		const frameTimeMs = 1000 / 60; // 16.7 ms
 		const timeReservedForDrawMs = 1.4;
 		const timeToCalculatePhysics = frameTimeMs - timeReservedForDrawMs;
-		
+
 		const timeDiff = Math.min(newCurrentTime - this.currentTime, frameTimeMs * 10);
 
 		const numSteps = 10;

@@ -2,6 +2,7 @@
 import { Controls, IPower } from "./core/IPower";
 import { Body, Box2D } from "./Box2D";
 import { Neighbor, NeighborsData, Particle, ParticleGroup, ParticleState, Spring, Vector, add, asB2D, dot, fromB2D, len, len2, mul, sub, zero } from "./Particle";
+import { scale } from "./scale";
 
 const {
 	Sticky,
@@ -19,9 +20,9 @@ type JelloArgs = {
 	readonly kSpringStrong: number;                 // Сила эластичных связей
 	readonly kSpringSoft: number;                   // Сила пластичных связей
 	readonly softSpringStretchSpeed: number;        // Скорость растяжения связей
-	readonly softSpringStretchTreshold: number;     // Порог для растяжения связей
+	readonly softSpringStretchTreshold: number;     // Процентный порог для растяжения связей
 	readonly softSpringCompressSpeed: number;       // Скорость сжатия связей
-	readonly softSpringCompressTreshold: number;    // Порог для сжатия связей
+	readonly softSpringCompressTreshold: number;    // Процентный порог для сжатия связей
 	readonly viscosityA: number;                    // Параметр трения 1
 	readonly viscosityB: number;                    // Параметр трения 2
 	readonly maxParticleSpringsCount: number;       // Максимальное число связей для вершины
@@ -70,9 +71,9 @@ export class Jello implements IDrawable, IPower {
 	readonly springList: Spring;        // Связный список активных связей
 
 	// Просчитанные заранее данные
-	readonly r2: number;			    // Квадрат радиуса
-	readonly r_inv: number;			    // Обратный радиус
-	readonly r_inv_half: number;		// Половина обратного радиуса
+	readonly r2: number;                // Квадрат радиуса
+	readonly r_inv: number;             // Обратный радиус
+	readonly r_inv_half: number;        // Половина обратного радиуса
 
 	readonly softSpringStretchSpeedDivR: number;
 	readonly softSpringCompressSpeedDivR: number;
@@ -887,6 +888,8 @@ export class Jello implements IDrawable, IPower {
 			springList
 		} = this;
 
+		ctx.lineWidth = 1 / scale;
+
 		let spring = springList.next;
 		while (spring) {
 			ctx.beginPath();
@@ -903,7 +906,7 @@ export class Jello implements IDrawable, IPower {
 			const p = particle.body.GetPosition();
 			ctx.strokeStyle = (particle.group === activeGroup) ? 'red' : 'black';
 			ctx.beginPath();
-			ctx.ellipse(p.x, p.y, 2, 2, 0, 0, 2 * Math.PI);
+			ctx.ellipse(p.x, p.y, 2 / scale, 2 / scale, 0, 0, 2 * Math.PI);
 			ctx.stroke();
 		}
 

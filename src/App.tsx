@@ -5,6 +5,7 @@ import { TestLevel } from './TestLevel';
 import { type GravitySensor as GravitySensorType } from 'motion-sensors-polyfill';
 import { Controls } from './core/IPower';
 import { mul } from './Particle';
+import { scale } from './scale';
 
 declare var GravitySensor: typeof GravitySensorType;
 
@@ -122,11 +123,11 @@ function App() {
       return;
     }
 
-    return new TestLevel(Box2D, width, height, isMobile);
+    return new TestLevel(Box2D, width / scale, height / scale, isMobile);
   }, [Box2D]);
 
   const controls = useMemo(() => {
-    const gravityScale = 0.5 / 9.8;
+    const gravityScale = 0.5 / (9.8 * scale);
 
     const controls: Controls = {
       spins: touch ? 'left' : (
@@ -188,6 +189,7 @@ function App() {
     context.clearRect(0, 0, width, height);
 
     context.save();
+    context.scale(scale, scale);
     context.fillStyle = '#000000';
 
     testLevel.draw(context);
