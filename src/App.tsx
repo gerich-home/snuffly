@@ -38,7 +38,6 @@ function App() {
   const [gx, setGx] = useState(0);
   const [gy, setGy] = useState(0);
   const [sim, setSim] = useState<SPHSimulation | null>(null);
-  const [renderer, setRenderer] = useState<MetaballRenderer | null>(null);
   const simRef = useRef<SPHSimulation | null>(null);
   const rendererRef = useRef<MetaballRenderer | null>(null);
   const controlsRef = useRef<Controls>({
@@ -160,7 +159,6 @@ function App() {
     });
     renderer.createBindGroup(sim.getParticleBuffer());
     rendererRef.current = renderer;
-    setRenderer(renderer);
   }, []);
 
   // Update controls Ref
@@ -186,7 +184,6 @@ function App() {
 
     function frame(time: number) {
       if (!running) return;
-      const dt = Math.min((time - lastTime) / 1000, 0.033);
       lastTime = time;
 
       if (!simRef.current || !rendererRef.current || !contextRef.current) {
