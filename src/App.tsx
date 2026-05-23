@@ -124,6 +124,9 @@ function App() {
   const deviceRef = useRef<GPUDevice | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const initialSpringsRef = useRef<SpringData[]>([]);
+  const frameCountRef = useRef(0);
+  const lastSpringsRef = useRef<SpringData[]>([]);
+  const cachedPosRef = useRef<Float32Array>(new Float32Array(NUM_PARTICLES * 6));
 
   // Sensor state
   const gxRef = useRef(0);
@@ -252,7 +255,7 @@ function App() {
     await renderer.init();
     renderer.setParams({
       numParticles: NUM_PARTICLES,
-      smoothingRadius: SMOOTHING_RADIUS,
+      smoothingRadius: SMOOTHING_RADIUS / VIEW_SCALE,
       threshold: 0.4,
       aspectRatio: canvas.width / canvas.height,
       resX: canvas.width,
@@ -277,35 +280,44 @@ function App() {
       const state = stateRef.current;
       const spin = touchRef.current ? 'left' : spinsRef.current;
       const gravScale = 0.5 / (9.8 * 1);
+      const fc = frameCountRef.current++;
 
       let positions: Float32Array;
-      try {
-        positions = await s.readParticles();
-      } catch {
-        requestAnimationFrame(frame);
-        return;
-      }
-
-      // Dynamic spring management
-      const dynamicSprings = findSpringPairs(positions, state);
-      if (state === 'fluid') {
-        s.uploadSprings([]);
+      let activeSpringCount = 0;
+      const readFrame = fc % 3 === 0;
+      if (readFrame) {
+        try {
+          positions = await s.readParticles();
+        } catch {
+          requestAnimationFrame(frame);
+          return;
+        }
+        cachedPosRef.current = positions;
+        // Dynamic spring management (every 3rd frame)
+        const dynamicSprings = findSpringPairs(positions, state);
+        lastSpringsRef.current = dynamicSprings;
+        activeSpringCount = dynamicSprings.length;
+        if (state === 'fluid') {
+          s.uploadSprings([]);
+        } else {
+          s.springStiffness = state === 'elastic' ? 0.1 : 0.3;
+          s.uploadSprings(dynamicSprings);
+        }
+        // Build spring line vertices
+        const springVerts = new Float32Array(dynamicSprings.length * 4);
+        for (let i = 0; i < dynamicSprings.length; i++) {
+          const o = i * 4;
+          const sp = dynamicSprings[i];
+          springVerts[o] = positions[sp.i * 6] / VIEW_SCALE;
+          springVerts[o + 1] = positions[sp.i * 6 + 1] / VIEW_SCALE;
+          springVerts[o + 2] = positions[sp.j * 6] / VIEW_SCALE;
+          springVerts[o + 3] = positions[sp.j * 6 + 1] / VIEW_SCALE;
+        }
+        r.uploadSpringVertices(springVerts);
       } else {
-        s.springStiffness = state === 'elastic' ? 0.1 : 0.3;
-        s.uploadSprings(dynamicSprings);
+        positions = cachedPosRef.current;
+        activeSpringCount = lastSpringsRef.current.length;
       }
-
-      // Build spring line vertices (divided by viewScale for rendering)
-      const springVerts = new Float32Array(dynamicSprings.length * 4);
-      for (let i = 0; i < dynamicSprings.length; i++) {
-        const o = i * 4;
-        const sp = dynamicSprings[i];
-        springVerts[o] = positions[sp.i * 6] / VIEW_SCALE;
-        springVerts[o + 1] = positions[sp.i * 6 + 1] / VIEW_SCALE;
-        springVerts[o + 2] = positions[sp.j * 6] / VIEW_SCALE;
-        springVerts[o + 3] = positions[sp.j * 6 + 1] / VIEW_SCALE;
-      }
-      r.uploadSpringVertices(springVerts);
 
       // Apply user control
       let ctrlX = 0, ctrlY = 0;
@@ -359,7 +371,7 @@ function App() {
 
       s.updateUniforms();
       s.step();
-      r.render(c, dynamicSprings.length);
+      r.render(c, activeSpringCount);
       requestAnimationFrame(frame);
     }
 
