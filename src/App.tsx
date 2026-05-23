@@ -1,158 +1,178 @@
 import './App.css';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SPHSimulation } from './gpu/simulation';
+import { useCallback, useEffect, useRef } from 'react';
+import { SPHSimulation, SpringData } from './gpu/simulation';
 import { MetaballRenderer } from './gpu/renderer';
-import { Controls } from './core/IPower';
-import { mul } from './Particle';
-import { scale } from './scale';
 
-const NUM_PARTICLES = 2000;
+const NUM_PARTICLES = 100;
+const MAX_SPRINGS_PER_PARTICLE = 15;
 const width = window.innerWidth;
 const height = window.innerHeight;
-const isMobile = (width * height < 800 * 800);
+const isMobile = width * height < 800 * 800;
+
+const SMOOTHING_RADIUS = 0.07;
+const CONTROL_POWER = 0.5;
+const SPIN_POWER = 0.3;
 
 declare var GravitySensor: {
-  new(options?: { frequency: number }): {
-    x: number;
-    y: number;
-    z: number;
-    addEventListener(type: 'reading', listener: () => void): void;
-    removeEventListener(type: 'reading', listener: () => void): void;
-    start(): void;
-    stop(): void;
+  new(opts?: { frequency: number }): {
+    x: number; y: number; z: number;
+    addEventListener(t: 'reading', fn: () => void): void;
+    removeEventListener(t: 'reading', fn: () => void): void;
+    start(): void; stop(): void;
   };
 };
 
+type ParticleState = 'sticky' | 'elastic' | 'fluid';
+
+function buildInitialSprings(positions: Float32Array): SpringData[] {
+  const cols = Math.ceil(Math.sqrt(NUM_PARTICLES * 0.6));
+  const rows = Math.ceil(NUM_PARTICLES / cols);
+  const springs: SpringData[] = [];
+  const perParticle = new Uint8Array(NUM_PARTICLES);
+
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+
+    const tryAdd = (j: number) => {
+      if (j >= NUM_PARTICLES) return;
+      if (perParticle[i] >= MAX_SPRINGS_PER_PARTICLE) return;
+      if (perParticle[j] >= MAX_SPRINGS_PER_PARTICLE) return;
+      const dx = positions[i * 6] - positions[j * 6];
+      const dy = positions[i * 6 + 1] - positions[j * 6 + 1];
+      const restLen = Math.sqrt(dx * dx + dy * dy);
+      if (restLen < 0.001) return;
+      springs.push({ i, j, restLength: restLen });
+      perParticle[i]++;
+      perParticle[j]++;
+    };
+
+    if (col + 1 < cols) tryAdd(i + 1);
+    if (row + 1 < rows) tryAdd(i + cols);
+    if (col + 1 < cols && row + 1 < rows) tryAdd(i + cols + 1);
+    if (col > 0 && row + 1 < rows) tryAdd(i + cols - 1);
+  }
+
+  return springs;
+}
+
 function App() {
-  const [spinsLeft, setSpinsLeft] = useState(false);
-  const [spinsRight, setSpinsRight] = useState(false);
-  const [left, setLeft] = useState(false);
-  const [right, setRight] = useState(false);
-  const [up, setUp] = useState(false);
-  const [down, setDown] = useState(false);
-  const [turnElastic, setTurnElastic] = useState(false);
-  const [turnJello, setTurnJello] = useState(false);
-  const [turnFluid, setTurnFluid] = useState(false);
-  const [soft, setSoft] = useState(false);
-  const [touch, setTouch] = useState(false);
-  const [gx, setGx] = useState(0);
-  const [gy, setGy] = useState(0);
-  const [sim, setSim] = useState<SPHSimulation | null>(null);
+  const keysRef = useRef({ left: false, right: false, up: false, down: false });
+  const spinsRef = useRef<'none' | 'left' | 'right'>('none');
+  const touchRef = useRef(false);
+  const gxRef = useRef(0);
+  const gyRef = useRef(0);
+  const stateRef = useRef<ParticleState>('sticky');
   const simRef = useRef<SPHSimulation | null>(null);
   const rendererRef = useRef<MetaballRenderer | null>(null);
-  const controlsRef = useRef<Controls>({
-    spins: 'none', left: false, right: false, down: false, up: false,
-    turnFluid: false, turnElastic: false, turnJello: false,
-    gravity: { x: 0, y: 9 / scale }, soft: false,
-  });
   const contextRef = useRef<GPUCanvasContext | null>(null);
   const deviceRef = useRef<GPUDevice | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const initialSpringsRef = useRef<SpringData[]>([]);
 
-  const keyMap: { [code: string]: (value: boolean) => void } = useMemo(() => ({
-    'ArrowLeft': setSpinsRight,
-    'ArrowRight': setSpinsLeft,
-    'KeyW': setUp,
-    'KeyA': setLeft,
-    'KeyS': setDown,
-    'KeyD': setRight,
-    'KeyQ': setTurnJello,
-    'KeyE': setTurnElastic,
-    'KeyF': setTurnFluid,
-    'Space': setSoft,
-  }), []);
-
-  const onTouchStart = useCallback(() => setTouch(true), []);
-  const onTouchEnd = useCallback(() => setTouch(false), []);
-
-  const onKeyDown = useCallback((event: KeyboardEvent) => {
-    const handler = keyMap[event.code];
-    if (handler) handler(true);
-  }, [keyMap]);
-
-  const onKeyUp = useCallback((event: KeyboardEvent) => {
-    const handler = keyMap[event.code];
-    if (handler) handler(false);
-  }, [keyMap]);
+  const keyMap: Record<string, (v: boolean) => void> = {
+    'ArrowLeft': (v) => { spinsRef.current = v ? 'left' : (spinsRef.current === 'left' ? 'none' : spinsRef.current); },
+    'ArrowRight': (v) => { spinsRef.current = v ? 'right' : (spinsRef.current === 'right' ? 'none' : spinsRef.current); },
+    'KeyW': (v) => { keysRef.current.up = v; },
+    'KeyA': (v) => { keysRef.current.left = v; },
+    'KeyS': (v) => { keysRef.current.down = v; },
+    'KeyD': (v) => { keysRef.current.right = v; },
+    'KeyQ': (v) => { if (v) stateRef.current = 'sticky'; },
+    'KeyE': (v) => { if (v) stateRef.current = 'elastic'; },
+    'KeyF': (v) => { if (v) stateRef.current = 'fluid'; },
+  };
 
   useEffect(() => {
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onKeyDown]);
+    const onDown = (e: KeyboardEvent) => { const f = keyMap[e.code]; if (f) f(true); };
+    const onUp = (e: KeyboardEvent) => { const f = keyMap[e.code]; if (f) f(false); };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
+  }, []);
 
   useEffect(() => {
-    window.addEventListener("keyup", onKeyUp);
-    return () => window.removeEventListener("keyup", onKeyUp);
-  }, [onKeyUp]);
+    const onStart = () => { touchRef.current = true; };
+    const onEnd = () => { touchRef.current = false; };
+    window.addEventListener('touchstart', onStart, false);
+    window.addEventListener('touchend', onEnd, false);
+    return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchend', onEnd); };
+  }, []);
 
   useEffect(() => {
-    window.addEventListener("touchstart", onTouchStart, false);
-    return () => window.removeEventListener("touchstart", onTouchStart, false);
-  }, [onTouchStart]);
-
-  useEffect(() => {
-    window.addEventListener("touchend", onTouchEnd, false);
-    return () => window.removeEventListener("touchend", onTouchEnd, false);
-  }, [onTouchEnd]);
-
-  useEffect(() => {
-    if (typeof GravitySensor !== 'undefined') {
-      const sensor = new GravitySensor({ frequency: 60 });
-      const listener = () => {
-        setGx(sensor.x);
-        setGy(sensor.y);
-      };
-      sensor.addEventListener("reading", listener);
-      sensor.start();
-      return () => {
-        sensor.stop();
-        sensor.removeEventListener("reading", listener);
-      };
+    if (typeof GravitySensor !== 'undefined' && GravitySensor) {
+      try {
+        const s = new GravitySensor({ frequency: 60 });
+        const fn = () => { gxRef.current = s.x; gyRef.current = s.y; };
+        s.addEventListener('reading', fn);
+        s.start();
+        return () => { s.stop(); s.removeEventListener('reading', fn); };
+      } catch {}
     }
   }, []);
 
-  // Init WebGPU
   const canvasCallback = useCallback(async (canvas: HTMLCanvasElement | null) => {
-    if (!canvas) return;
-    if (canvasRef.current === canvas) return;
+    if (!canvas || canvasRef.current === canvas) return;
     canvasRef.current = canvas;
-
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    if (!navigator.gpu) {
-      console.error('WebGPU not supported');
-      return;
-    }
+    if (!navigator.gpu) { console.error('WebGPU not available'); return; }
 
     const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) { console.error('No GPU adapter'); return; }
-
+    if (!adapter) return;
     const device = await adapter.requestDevice();
     deviceRef.current = device;
 
     const context = canvas.getContext('webgpu');
-    if (!context) { console.error('No WebGPU context'); return; }
+    if (!context) return;
     contextRef.current = context;
 
     const format = navigator.gpu.getPreferredCanvasFormat();
-    context.configure({
-      device,
-      format,
-      alphaMode: 'premultiplied',
-    });
+    context.configure({ device, format, alphaMode: 'premultiplied' });
 
     const sim = new SPHSimulation(device, NUM_PARTICLES);
     await sim.init();
+    sim.updateUniforms();
     simRef.current = sim;
-    setSim(sim);
+
+    // Initialize particles in a dense centered blob
+    const data = new Float32Array(NUM_PARTICLES * 6);
+    const cols = Math.ceil(Math.sqrt(NUM_PARTICLES * 0.6));
+    const spacing = SMOOTHING_RADIUS * 0.5;
+    const rows = Math.ceil(NUM_PARTICLES / cols);
+    const gridW = (cols - 1) * spacing;
+    const gridH = (rows - 1) * spacing;
+    const startX = 0.5 - gridW / 2;
+    const startY = 0.5 - gridH / 2;
+    for (let i = 0; i < NUM_PARTICLES; i++) {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const o = i * 6;
+      data[o] = startX + col * spacing + (row % 2) * spacing * 0.5;
+      data[o + 1] = startY + row * spacing;
+    }
+    sim.uploadParticles(data);
+
+    // Create fixed spring topology (grid mesh)
+    const springs = buildInitialSprings(data);
+    initialSpringsRef.current = springs;
+    sim.springStiffness = 0.4;
+    sim.uploadSprings(springs);
+
+    // Set up containment (invisible walls)
+    sim.setRigidBodies([
+      { x: 0.5, y: -0.5, vx: 0, vy: 0, halfW: 0.6, halfH: 0.5, shapeType: 0 },
+      { x: 0.5, y: 1.5, vx: 0, vy: 0, halfW: 0.6, halfH: 0.5, shapeType: 0 },
+      { x: -0.5, y: 0.5, vx: 0, vy: 0, halfW: 0.5, halfH: 0.6, shapeType: 0 },
+      { x: 1.5, y: 0.5, vx: 0, vy: 0, halfW: 0.5, halfH: 0.6, shapeType: 0 },
+    ]);
 
     const renderer = new MetaballRenderer(device, format);
     await renderer.init();
     renderer.setParams({
       numParticles: NUM_PARTICLES,
-      smoothingRadius: sim.smoothingRadius,
-      threshold: 0.65,
+      smoothingRadius: SMOOTHING_RADIUS,
+      threshold: 0.7,
       aspectRatio: canvas.width / canvas.height,
       resX: canvas.width,
       resY: canvas.height,
@@ -161,112 +181,109 @@ function App() {
     rendererRef.current = renderer;
   }, []);
 
-  // Update controls Ref
   useEffect(() => {
-    const gravityScale = 0.5 / (9.8 * scale);
-    controlsRef.current = {
-      spins: touch ? 'left' : (
-        (spinsLeft === spinsRight) ? 'none' : (spinsRight ? 'right' : 'left')
-      ),
-      down, left, right, up,
-      turnFluid, turnElastic, turnJello,
-      gravity: mul({ x: -gx, y: gy }, gravityScale),
-      soft,
-    };
-  }, [spinsLeft, spinsRight, left, right, up, down, turnFluid, turnElastic, turnJello, touch, gx, gy, soft]);
-
-  // Apply controls to sim each frame
-  useEffect(() => {
-    if (!sim) return;
-
     let running = true;
-    let lastTime = performance.now();
 
-    function frame(time: number) {
+    async function frame() {
       if (!running) return;
-      lastTime = time;
+      const s = simRef.current;
+      const r = rendererRef.current;
+      const c = contextRef.current;
+      if (!s || !r || !c) { requestAnimationFrame(frame); return; }
 
-      if (!simRef.current || !rendererRef.current || !contextRef.current) {
+      const keys = keysRef.current;
+      const state = stateRef.current;
+      const spin = touchRef.current ? 'left' : spinsRef.current;
+      const gravScale = 0.5 / (9.8 * 1);
+
+      let positions: Float32Array;
+      try {
+        positions = await s.readParticles();
+      } catch {
         requestAnimationFrame(frame);
         return;
       }
 
-      const c = controlsRef.current;
-      const controlPower = 0.6;
-
-      if (c.left || c.right || c.up || c.down) {
-        const fx = (c.left ? -controlPower : (c.right ? controlPower : 0));
-        const fy = (c.up ? controlPower : (c.down ? -controlPower : 0));
-        simRef.current.applyImpulse(0.5, 0.5, 0.3, fx, fy);
+      // Upload springs for physics (fixed topology, initial rest lengths)
+      const springs = initialSpringsRef.current;
+      if (state === 'fluid') {
+        s.uploadSprings([]);
+      } else {
+        s.springStiffness = state === 'elastic' ? 0.15 : 0.3;
+        s.uploadSprings(springs);
       }
 
-      const g = c.gravity;
-      if (g.x !== 0 || g.y !== 0) {
-        simRef.current.setGravity(g.x, g.y);
+      // Build spring line vertices for rendering
+      const springVerts = new Float32Array(springs.length * 4);
+      for (let i = 0; i < springs.length; i++) {
+        const o = i * 4;
+        const sp = springs[i];
+        springVerts[o] = positions[sp.i * 6];
+        springVerts[o + 1] = positions[sp.i * 6 + 1];
+        springVerts[o + 2] = positions[sp.j * 6];
+        springVerts[o + 3] = positions[sp.j * 6 + 1];
+      }
+      r.uploadSpringVertices(springVerts);
+
+      // Apply user control
+      let ctrlX = 0, ctrlY = 0;
+      if (keys.left) ctrlX -= 1;
+      if (keys.right) ctrlX += 1;
+      if (keys.up) ctrlY += 1;
+      if (keys.down) ctrlY -= 1;
+
+      // Apply spin force
+      if (spin !== 'none') {
+        const spinDir = spin === 'left' ? 1 : -1;
+        let cx = 0, cy = 0;
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          cx += positions[i * 6];
+          cy += positions[i * 6 + 1];
+        }
+        cx /= NUM_PARTICLES;
+        cy /= NUM_PARTICLES;
+        const spinStr = SPIN_POWER * 2;
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const dx = positions[i * 6] - cx;
+          const dy = positions[i * 6 + 1] - cy;
+          s.applyImpulse(cx + dx * 0.01, cy + dy * 0.01, 0.001, -dy * spinStr * spinDir, dx * spinStr * spinDir);
+        }
       }
 
-      simRef.current.step();
-      rendererRef.current.render(contextRef.current!);
+      if (ctrlX !== 0 || ctrlY !== 0) {
+        const len = Math.sqrt(ctrlX * ctrlX + ctrlY * ctrlY);
+        if (len > 0) { ctrlX /= len; ctrlY /= len; }
+        s.setControl(ctrlX, ctrlY, CONTROL_POWER);
+      } else {
+        s.clearControl();
+      }
+
+      // Gravity from orientation sensor
+      const gx = gxRef.current;
+      const gy = gyRef.current;
+      if (gx !== 0 || gy !== 0) {
+        s.setGravity(-gx * gravScale * 0.5, gy * gravScale * 0.5 - 1.0);
+      }
+
+      s.updateUniforms();
+      s.step();
+      r.render(c, springs.length);
       requestAnimationFrame(frame);
     }
 
     requestAnimationFrame(frame);
     return () => { running = false; };
-  }, [sim]);
-
-  // Touch move for impulse
-  useEffect(() => {
-    if (!sim) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    function getCanvasPos(clientX: number, clientY: number) {
-      const r = canvas!.getBoundingClientRect();
-      return {
-        x: (clientX - r.left) / r.width,
-        y: 1 - (clientY - r.top) / r.height,
-      };
-    }
-
-    function onTouchMove(e: TouchEvent) {
-      e.preventDefault();
-      if (!simRef.current) return;
-      const t = e.changedTouches[0];
-      const p = getCanvasPos(t.clientX, t.clientY);
-      simRef.current.applyImpulse(p.x, p.y, 0.08, 0.4, 0.4);
-    }
-
-    function onMouseMove(e: MouseEvent) {
-      if (!simRef.current) return;
-      const p = getCanvasPos(e.clientX, e.clientY);
-      simRef.current.applyImpulse(p.x, p.y, 0.08, 0.4, 0.4);
-    }
-
-    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
-    canvas.addEventListener('mousemove', onMouseMove);
-
-    return () => {
-      canvas.removeEventListener('touchmove', onTouchMove);
-      canvas.removeEventListener('mousemove', onMouseMove);
-    };
-  }, [sim]);
+  }, []);
 
   return (
     <>
-      <div style={{ position: 'absolute', animation: 'fadeOut 7s', animationFillMode: 'forwards' }}>
-        {isMobile ? null : (
-          <>
-            <div>WASD - move jello</div>
-            <div>left/right arrows - spin jello</div>
-            <div>Q - make sticky & plastic</div>
-            <div>E - make non-sticky & elastic</div>
-          </>
-        )}
+      <canvas ref={canvasCallback} style={{ display: 'block', width: '100%', height: '100%' }} />
+      <div style={{
+        position: 'absolute', top: 8, left: 8, color: '#888',
+        font: '12px monospace', pointerEvents: 'none', opacity: 0.8,
+      }}>
+        {isMobile ? 'Tilt to move. Shake for impulse.' : 'WASD - move | Arrows - spin | Q/E/F - state'}
       </div>
-      <canvas
-        ref={canvasCallback}
-        style={{ display: 'block', width: '100%', height: '100%' }}
-      />
     </>
   );
 }

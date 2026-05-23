@@ -1,4 +1,4 @@
-import { METABALL_VERTEX, METABALL_FRAGMENT } from './shaders';
+import { METABALL_VERTEX, METABALL_FRAGMENT, SPRING_VERTEX, SPRING_FRAGMENT } from './shaders';
 
 export class MetaballRenderer {
   format: GPUTextureFormat;
@@ -15,6 +15,10 @@ export class MetaballRenderer {
   pipeline!: GPURenderPipeline;
   bindGroup!: GPUBindGroup;
 
+  private maxSprings = 2000;
+  private springVertexBuffer!: GPUBuffer;
+  private springPipeline!: GPURenderPipeline;
+
   constructor(device: GPUDevice, format: GPUTextureFormat) {
     this.device = device;
     this.format = format;
@@ -24,6 +28,11 @@ export class MetaballRenderer {
     this.uniformBuffer = this.device.createBuffer({
       size: this.uniformBufferSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.springVertexBuffer = this.device.createBuffer({
+      size: this.maxSprings * 16,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
     const vertexModule = this.device.createShaderModule({ code: METABALL_VERTEX });
@@ -49,6 +58,22 @@ export class MetaballRenderer {
         targets: [{ format: this.format }],
       },
       primitive: { topology: 'triangle-list' },
+    });
+
+    this.springPipeline = this.device.createRenderPipeline({
+      layout: 'auto',
+      vertex: {
+        module: this.device.createShaderModule({ code: SPRING_VERTEX }),
+        buffers: [{
+          arrayStride: 8,
+          attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }],
+        }],
+      },
+      fragment: {
+        module: this.device.createShaderModule({ code: SPRING_FRAGMENT }),
+        targets: [{ format: this.format }],
+      },
+      primitive: { topology: 'line-list' },
     });
   }
 
@@ -92,7 +117,11 @@ export class MetaballRenderer {
     this.updateUniforms();
   }
 
-  render(context: GPUCanvasContext) {
+  uploadSpringVertices(data: Float32Array) {
+    this.device.queue.writeBuffer(this.springVertexBuffer, 0, data);
+  }
+
+  render(context: GPUCanvasContext, numSpringsToDraw: number = 0) {
     if (!this.bindGroup) return;
 
     const texture = context.getCurrentTexture();
@@ -111,8 +140,14 @@ export class MetaballRenderer {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.bindGroup);
     pass.draw(6);
-    pass.end();
 
+    if (numSpringsToDraw > 0) {
+      pass.setPipeline(this.springPipeline);
+      pass.setVertexBuffer(0, this.springVertexBuffer);
+      pass.draw(numSpringsToDraw * 2);
+    }
+
+    pass.end();
     this.device.queue.submit([encoder.finish()]);
   }
 }
