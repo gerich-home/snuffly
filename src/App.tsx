@@ -9,7 +9,9 @@ const width = window.innerWidth;
 const height = window.innerHeight;
 const isMobile = width * height < 800 * 800;
 
-const VIEW_SCALE = 4;
+const VIEW_SCALE = 16;
+const BOUNDARY_MARGIN = 0.02 * VIEW_SCALE;
+const WORLD_SIZE = VIEW_SCALE;
 const SMOOTHING_RADIUS = 0.07 * VIEW_SCALE;
 const SPACING = SMOOTHING_RADIUS * 0.5;
 const CONTROL_POWER = 0.5;
@@ -218,23 +220,25 @@ function App() {
 
     const sim = new SPHSimulation(device, NUM_PARTICLES);
     sim.smoothingRadius = SMOOTHING_RADIUS;
-    sim.gravityY = -6.0;
-    sim.boundaryMinX = 0.08;
-    sim.boundaryMinY = 0.08;
-    sim.boundaryMaxX = 3.92;
-    sim.boundaryMaxY = 3.92;
+    sim.gravityY = -1.5 * VIEW_SCALE;
+    sim.boundaryMinX = BOUNDARY_MARGIN;
+    sim.boundaryMinY = BOUNDARY_MARGIN;
+    sim.boundaryMaxX = WORLD_SIZE - BOUNDARY_MARGIN;
+    sim.boundaryMaxY = WORLD_SIZE - BOUNDARY_MARGIN;
     await sim.init();
     sim.updateUniforms();
     simRef.current = sim;
 
-    // Initialize particles in [0, 4] space, centered at (2, 2)
+    // Initialize particles, centered in world
     const data = new Float32Array(NUM_PARTICLES * 6);
     const cols = Math.ceil(Math.sqrt(NUM_PARTICLES * 0.6));
     const rows = Math.ceil(NUM_PARTICLES / cols);
     const gridW = (cols - 1) * SPACING;
     const gridH = (rows - 1) * SPACING;
-    const startX = 2 - gridW / 2;
-    const startY = 2 - gridH / 2;
+    const cx = WORLD_SIZE / 2;
+    const cy = WORLD_SIZE / 2;
+    const startX = cx - gridW / 2;
+    const startY = cy - gridH / 2;
     for (let i = 0; i < NUM_PARTICLES; i++) {
       const row = Math.floor(i / cols);
       const col = i % cols;
@@ -342,12 +346,12 @@ function App() {
       if (gx !== 0 || gy !== 0) {
         const tiltX = -gx * gravScale * 0.5 * VIEW_SCALE;
         const tiltY = gy * gravScale * 0.5 * VIEW_SCALE;
-        s.setGravity(tiltX, tiltY - 6.0);
+        s.setGravity(tiltX, tiltY - 1.5 * VIEW_SCALE);
       }
 
       // Shake detection → impulse
       if (shakeRef.current) {
-        const cx = 2, cy = 2;
+        const cx = WORLD_SIZE / 2, cy = WORLD_SIZE / 2;
         const radius = 1.0 * VIEW_SCALE;
         s.applyImpulse(cx, cy, radius, 4, -4);
         shakeRef.current = 0;
