@@ -4,14 +4,17 @@ import { SPHSimulation, SpringData } from './gpu/simulation';
 import { MetaballRenderer } from './gpu/renderer';
 
 const NUM_PARTICLES = 100;
-const MAX_SPRINGS_PER_PARTICLE = 15;
+const MAX_SPRINGS_PER_PARTICLE = 20;
 const width = window.innerWidth;
 const height = window.innerHeight;
 const isMobile = width * height < 800 * 800;
 
-const SMOOTHING_RADIUS = 0.07;
+const VIEW_SCALE = 4;
+const SMOOTHING_RADIUS = 0.07 * VIEW_SCALE;
+const SPACING = SMOOTHING_RADIUS * 0.5;
 const CONTROL_POWER = 0.5;
 const SPIN_POWER = 0.3;
+const SHAKE_THRESHOLD = 15;
 
 declare var GravitySensor: {
   new(opts?: { frequency: number }): {
@@ -56,12 +59,62 @@ function buildInitialSprings(positions: Float32Array): SpringData[] {
   return springs;
 }
 
+function findNeighbors(positions: Float32Array, radius: number) {
+  const n = NUM_PARTICLES;
+  const r2 = radius * radius;
+  const neighbors: { j: number; dist: number }[][] = Array.from({ length: n }, () => []);
+  const minDistSq = 0.001 * 0.001;
+  for (let i = 0; i < n; i++) {
+    const ix = positions[i * 6];
+    const iy = positions[i * 6 + 1];
+    for (let j = i + 1; j < n; j++) {
+      const dx = ix - positions[j * 6];
+      const dy = iy - positions[j * 6 + 1];
+      const d2 = dx * dx + dy * dy;
+      if (d2 < r2 && d2 > minDistSq) {
+        const d = Math.sqrt(d2);
+        neighbors[i].push({ j, dist: d });
+        neighbors[j].push({ j: i, dist: d });
+      }
+    }
+  }
+  return neighbors;
+}
+
+function findSpringPairs(positions: Float32Array, state: ParticleState): SpringData[] {
+  if (state === 'fluid') return [];
+
+  const connectRadius = SMOOTHING_RADIUS;
+  const breakRadius = connectRadius * 1.5;
+  const breakR2 = breakRadius * breakRadius;
+  const neighbors = findNeighbors(positions, connectRadius);
+  const springs: SpringData[] = [];
+  const perParticle = new Uint8Array(NUM_PARTICLES);
+
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    for (const n of neighbors[i]) {
+      if (n.j <= i) continue;
+      if (perParticle[i] >= MAX_SPRINGS_PER_PARTICLE) continue;
+      if (perParticle[n.j] >= MAX_SPRINGS_PER_PARTICLE) continue;
+
+      const dx = positions[i * 6] - positions[n.j * 6];
+      const dy = positions[i * 6 + 1] - positions[n.j * 6 + 1];
+      const d2 = dx * dx + dy * dy;
+      if (d2 > breakR2) continue;
+
+      springs.push({ i: i, j: n.j, restLength: n.dist });
+      perParticle[i]++;
+      perParticle[n.j]++;
+    }
+  }
+
+  return springs;
+}
+
 function App() {
   const keysRef = useRef({ left: false, right: false, up: false, down: false });
   const spinsRef = useRef<'none' | 'left' | 'right'>('none');
   const touchRef = useRef(false);
-  const gxRef = useRef(0);
-  const gyRef = useRef(0);
   const stateRef = useRef<ParticleState>('sticky');
   const simRef = useRef<SPHSimulation | null>(null);
   const rendererRef = useRef<MetaballRenderer | null>(null);
@@ -69,6 +122,12 @@ function App() {
   const deviceRef = useRef<GPUDevice | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const initialSpringsRef = useRef<SpringData[]>([]);
+
+  // Sensor state
+  const gxRef = useRef(0);
+  const gyRef = useRef(0);
+  const shakeRef = useRef(0);
+  const lastAccelRef = useRef({ x: 0, y: 0, z: 0 });
 
   const keyMap: Record<string, (v: boolean) => void> = {
     'ArrowLeft': (v) => { spinsRef.current = v ? 'left' : (spinsRef.current === 'left' ? 'none' : spinsRef.current); },
@@ -98,16 +157,43 @@ function App() {
     return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchend', onEnd); };
   }, []);
 
+  // Device orientation (tilt)
   useEffect(() => {
+    const onOrientation = (e: DeviceOrientationEvent) => {
+      if (e.gamma !== null) gxRef.current = e.gamma;
+      if (e.beta !== null) gyRef.current = e.beta;
+    };
+    window.addEventListener('deviceorientation', onOrientation);
+
+    // Also try GravitySensor (newer API)
     if (typeof GravitySensor !== 'undefined' && GravitySensor) {
       try {
         const s = new GravitySensor({ frequency: 60 });
-        const fn = () => { gxRef.current = s.x; gyRef.current = s.y; };
+        const fn = () => { gxRef.current = s.x * 90; gyRef.current = s.y * 90; };
         s.addEventListener('reading', fn);
         s.start();
-        return () => { s.stop(); s.removeEventListener('reading', fn); };
       } catch {}
     }
+
+    return () => { window.removeEventListener('deviceorientation', onOrientation); };
+  }, []);
+
+  // Device motion (shake)
+  useEffect(() => {
+    const onMotion = (e: DeviceMotionEvent) => {
+      if (!e.accelerationIncludingGravity) return;
+      const ax = e.accelerationIncludingGravity.x || 0;
+      const ay = e.accelerationIncludingGravity.y || 0;
+      const az = e.accelerationIncludingGravity.z || 0;
+      const last = lastAccelRef.current;
+      const delta = Math.abs(ax - last.x) + Math.abs(ay - last.y) + Math.abs(az - last.z);
+      lastAccelRef.current = { x: ax, y: ay, z: az };
+      if (delta > SHAKE_THRESHOLD) {
+        shakeRef.current = 1;
+      }
+    };
+    window.addEventListener('devicemotion', onMotion);
+    return () => { window.removeEventListener('devicemotion', onMotion); };
   }, []);
 
   const canvasCallback = useCallback(async (canvas: HTMLCanvasElement | null) => {
@@ -131,51 +217,43 @@ function App() {
     context.configure({ device, format, alphaMode: 'premultiplied' });
 
     const sim = new SPHSimulation(device, NUM_PARTICLES);
+    sim.smoothingRadius = SMOOTHING_RADIUS;
+    sim.gravityY = -6.0;
+    sim.boundaryMinX = 0.08;
+    sim.boundaryMinY = 0.08;
+    sim.boundaryMaxX = 3.92;
+    sim.boundaryMaxY = 3.92;
     await sim.init();
     sim.updateUniforms();
     simRef.current = sim;
 
-    // Initialize particles in a dense centered blob
+    // Initialize particles in [0, 4] space, centered at (2, 2)
     const data = new Float32Array(NUM_PARTICLES * 6);
     const cols = Math.ceil(Math.sqrt(NUM_PARTICLES * 0.6));
-    const spacing = SMOOTHING_RADIUS * 0.5;
     const rows = Math.ceil(NUM_PARTICLES / cols);
-    const gridW = (cols - 1) * spacing;
-    const gridH = (rows - 1) * spacing;
-    const startX = 0.5 - gridW / 2;
-    const startY = 0.5 - gridH / 2;
+    const gridW = (cols - 1) * SPACING;
+    const gridH = (rows - 1) * SPACING;
+    const startX = 2 - gridW / 2;
+    const startY = 2 - gridH / 2;
     for (let i = 0; i < NUM_PARTICLES; i++) {
       const row = Math.floor(i / cols);
       const col = i % cols;
       const o = i * 6;
-      data[o] = startX + col * spacing + (row % 2) * spacing * 0.5;
-      data[o + 1] = startY + row * spacing;
+      data[o] = startX + col * SPACING + (row % 2) * SPACING * 0.5;
+      data[o + 1] = startY + row * SPACING;
     }
     sim.uploadParticles(data);
-
-    // Create fixed spring topology (grid mesh)
-    const springs = buildInitialSprings(data);
-    initialSpringsRef.current = springs;
-    sim.springStiffness = 0.4;
-    sim.uploadSprings(springs);
-
-    // Set up containment (invisible walls)
-    sim.setRigidBodies([
-      { x: 0.5, y: -0.5, vx: 0, vy: 0, halfW: 0.6, halfH: 0.5, shapeType: 0 },
-      { x: 0.5, y: 1.5, vx: 0, vy: 0, halfW: 0.6, halfH: 0.5, shapeType: 0 },
-      { x: -0.5, y: 0.5, vx: 0, vy: 0, halfW: 0.5, halfH: 0.6, shapeType: 0 },
-      { x: 1.5, y: 0.5, vx: 0, vy: 0, halfW: 0.5, halfH: 0.6, shapeType: 0 },
-    ]);
 
     const renderer = new MetaballRenderer(device, format);
     await renderer.init();
     renderer.setParams({
       numParticles: NUM_PARTICLES,
       smoothingRadius: SMOOTHING_RADIUS,
-      threshold: 0.7,
+      threshold: 0.4,
       aspectRatio: canvas.width / canvas.height,
       resX: canvas.width,
       resY: canvas.height,
+      viewScale: VIEW_SCALE,
     });
     renderer.createBindGroup(sim.getParticleBuffer());
     rendererRef.current = renderer;
@@ -204,24 +282,24 @@ function App() {
         return;
       }
 
-      // Upload springs for physics (fixed topology, initial rest lengths)
-      const springs = initialSpringsRef.current;
+      // Dynamic spring management
+      const dynamicSprings = findSpringPairs(positions, state);
       if (state === 'fluid') {
         s.uploadSprings([]);
       } else {
-        s.springStiffness = state === 'elastic' ? 0.15 : 0.3;
-        s.uploadSprings(springs);
+        s.springStiffness = state === 'elastic' ? 0.1 : 0.3;
+        s.uploadSprings(dynamicSprings);
       }
 
-      // Build spring line vertices for rendering
-      const springVerts = new Float32Array(springs.length * 4);
-      for (let i = 0; i < springs.length; i++) {
+      // Build spring line vertices (divided by viewScale for rendering)
+      const springVerts = new Float32Array(dynamicSprings.length * 4);
+      for (let i = 0; i < dynamicSprings.length; i++) {
         const o = i * 4;
-        const sp = springs[i];
-        springVerts[o] = positions[sp.i * 6];
-        springVerts[o + 1] = positions[sp.i * 6 + 1];
-        springVerts[o + 2] = positions[sp.j * 6];
-        springVerts[o + 3] = positions[sp.j * 6 + 1];
+        const sp = dynamicSprings[i];
+        springVerts[o] = positions[sp.i * 6] / VIEW_SCALE;
+        springVerts[o + 1] = positions[sp.i * 6 + 1] / VIEW_SCALE;
+        springVerts[o + 2] = positions[sp.j * 6] / VIEW_SCALE;
+        springVerts[o + 3] = positions[sp.j * 6 + 1] / VIEW_SCALE;
       }
       r.uploadSpringVertices(springVerts);
 
@@ -242,7 +320,7 @@ function App() {
         }
         cx /= NUM_PARTICLES;
         cy /= NUM_PARTICLES;
-        const spinStr = SPIN_POWER * 2;
+        const spinStr = SPIN_POWER * 2 * VIEW_SCALE;
         for (let i = 0; i < NUM_PARTICLES; i++) {
           const dx = positions[i * 6] - cx;
           const dy = positions[i * 6 + 1] - cy;
@@ -253,7 +331,7 @@ function App() {
       if (ctrlX !== 0 || ctrlY !== 0) {
         const len = Math.sqrt(ctrlX * ctrlX + ctrlY * ctrlY);
         if (len > 0) { ctrlX /= len; ctrlY /= len; }
-        s.setControl(ctrlX, ctrlY, CONTROL_POWER);
+        s.setControl(ctrlX, ctrlY, CONTROL_POWER * VIEW_SCALE);
       } else {
         s.clearControl();
       }
@@ -262,12 +340,22 @@ function App() {
       const gx = gxRef.current;
       const gy = gyRef.current;
       if (gx !== 0 || gy !== 0) {
-        s.setGravity(-gx * gravScale * 0.5, gy * gravScale * 0.5 - 1.0);
+        const tiltX = -gx * gravScale * 0.5 * VIEW_SCALE;
+        const tiltY = gy * gravScale * 0.5 * VIEW_SCALE;
+        s.setGravity(tiltX, tiltY - 6.0);
+      }
+
+      // Shake detection → impulse
+      if (shakeRef.current) {
+        const cx = 2, cy = 2;
+        const radius = 1.0 * VIEW_SCALE;
+        s.applyImpulse(cx, cy, radius, 4, -4);
+        shakeRef.current = 0;
       }
 
       s.updateUniforms();
       s.step();
-      r.render(c, springs.length);
+      r.render(c, dynamicSprings.length);
       requestAnimationFrame(frame);
     }
 

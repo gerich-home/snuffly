@@ -8,10 +8,11 @@ export class MetaballRenderer {
   aspectRatio = 1;
   resX = 1;
   resY = 1;
+  viewScale = 1;
 
   private device: GPUDevice;
   private uniformBuffer!: GPUBuffer;
-  private uniformBufferSize = 24;
+  private uniformBufferSize = 32;
   pipeline!: GPURenderPipeline;
   bindGroup!: GPUBindGroup;
 
@@ -87,6 +88,7 @@ export class MetaballRenderer {
     f32[3] = this.aspectRatio;
     f32[4] = this.resX;
     f32[5] = this.resY;
+    f32[6] = this.viewScale;
     this.device.queue.writeBuffer(this.uniformBuffer, 0, buf);
   }
 
@@ -107,6 +109,7 @@ export class MetaballRenderer {
     aspectRatio: number;
     resX: number;
     resY: number;
+    viewScale: number;
   }>) {
     if (params.numParticles !== undefined) this.numParticles = params.numParticles;
     if (params.smoothingRadius !== undefined) this.smoothingRadius = params.smoothingRadius;
@@ -114,6 +117,7 @@ export class MetaballRenderer {
     if (params.aspectRatio !== undefined) this.aspectRatio = params.aspectRatio;
     if (params.resX !== undefined) this.resX = params.resX;
     if (params.resY !== undefined) this.resY = params.resY;
+    if (params.viewScale !== undefined) this.viewScale = params.viewScale;
     this.updateUniforms();
   }
 

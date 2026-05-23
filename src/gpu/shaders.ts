@@ -259,6 +259,7 @@ struct RenderParams {
   threshold: f32,
   aspectRatio: f32,
   resolution: vec2f,
+  viewScale: f32,
 };
 
 @group(0) @binding(0) var<storage, read> particles: array<Particle>;
@@ -272,9 +273,10 @@ fn main(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
   let h = renderParams.smoothingRadius;
   let h2 = h * h;
   let aspect = renderParams.aspectRatio;
+  let vs = renderParams.viewScale;
 
   for (var i = 0u; i < renderParams.numParticles; i = i + 1u) {
-    let pPos = particles[i].pos;
+    let pPos = particles[i].pos / vs;
     let dx = (uv.x - pPos.x) * aspect;
     let dy = uv.y - pPos.y;
     let r2 = dx * dx + dy * dy;
