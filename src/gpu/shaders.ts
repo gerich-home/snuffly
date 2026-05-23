@@ -4,84 +4,59 @@ struct Particle {
   vel: vec2f,
   density: f32,
   pressure: f32,
-};
-
-struct Spring {
-  i: u32,
-  j: u32,
-  restLength: f32,
-  _pad0: f32,
+  nearPressure: f32,
 };
 
 struct RigidBody {
   pos: vec2f,
   vel: vec2f,
-  halfSize: vec2f,  // box half-extents
+  halfSize: vec2f,
   angle: f32,
-  shapeType: u32,   // 0=box, 1=circle
+  shapeType: u32,
   _pad0: f32, _pad1: f32,
 };
 
 struct SimParams {
   numParticles: u32,
-  numSprings: u32,
   numRigidBodies: u32,
+  impulseActive: u32,
+  numParticlesSq: u32,
   dt: f32,
   smoothingRadius: f32,
   restDensity: f32,
   stiffness: f32,
   nearStiffness: f32,
-  viscosity: f32,
+  viscosityA: f32,
+  viscosityB: f32,
   springStiffness: f32,
-  gravity: vec2f,
   wallDamping: f32,
+  maxVelocity: f32,
+  impulseRadius: f32,
+  controlStrength: f32,
+  springConnectRadius: f32,
+  springBreakRadius: f32,
+  springStretchThreshold: f32,
+  springCompressThreshold: f32,
+  springStretchSpeed: f32,
+  springCompressSpeed: f32,
+  maxCollisionVelocity: f32,
+  maxSpringLength: f32,
+  gravity: vec2f,
   boundaryMin: vec2f,
   boundaryMax: vec2f,
-  maxVelocity: f32,
   impulsePos: vec2f,
-  impulseRadius: f32,
   impulseStrength: vec2f,
-  impulseActive: u32,
   controlDir: vec2f,
-  controlStrength: f32,
 };
 
 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
 @group(0) @binding(1) var<uniform> params: SimParams;
-@group(0) @binding(2) var<storage, read> springs: array<Spring>;
+@group(0) @binding(2) var<storage, read_write> restLengths: array<f32>;
 @group(0) @binding(3) var<storage, read> rigidBodies: array<RigidBody>;
 
-const PI: f32 = 3.14159265359;
-
-fn poly6Kernel(r2: f32, h: f32) -> f32 {
-  let h2 = h * h;
-  if r2 >= h2 { return 0.0; }
-  let diff = h2 - r2;
-  return 315.0 / (64.0 * PI * pow(h, 9.0)) * diff * diff * diff;
-}
-
-fn spikyGradient(r: f32, h: f32) -> f32 {
-  if r >= h || r < 0.0001 { return 0.0; }
-  let diff = h - r;
-  return -45.0 / (PI * pow(h, 6.0)) * diff * diff;
-}
-
-fn viscosityLaplacian(r: f32, h: f32) -> f32 {
-  if r >= h { return 0.0; }
-  return 45.0 / (PI * pow(h, 6.0)) * (h - r);
-}
-
-fn nearPoly6Kernel(r: f32, h: f32) -> f32 {
-  if r >= h || r < 0.0 { return 0.0; }
-  let diff = h - r;
-  return diff * diff * diff;
-}
-
-// Point-to-AABB distance
-fn pointToBoxDist(p: vec2f, boxPos: vec2f, halfSize: vec2f) -> f32 {
-  let delta = p - boxPos;
-  let d = abs(delta) - halfSize;
-  return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0);
+fn q1(dist: f32, h: f32) -> f32 {
+  if dist >= h { return 0.0; }
+  return 1.0 - dist / h;
 }
 
 @compute @workgroup_size(128)
@@ -93,20 +68,23 @@ fn computeDensityAndPressure(@builtin(global_invocation_id) global_id: vec3u) {
   var nearDensity: f32 = 0.0;
   let myPos = particles[i].pos;
   let h = params.smoothingRadius;
-  let h2 = h * h;
+  let n = params.numParticles;
 
-  for (var j = 0u; j < params.numParticles; j = j + 1u) {
+  for (var j = 0u; j < n; j = j + 1u) {
+    if j == i { continue; }
     let diff = myPos - particles[j].pos;
-    let r2 = dot(diff, diff);
-    if r2 < h2 {
-      density += poly6Kernel(r2, h);
-      nearDensity += nearPoly6Kernel(sqrt(r2), h);
+    let dist = length(diff);
+    let q = q1(dist, h);
+    if q > 0.0 {
+      let q2 = q * q;
+      density += q2;
+      nearDensity += q2 * q;
     }
   }
 
   particles[i].density = max(density, 0.001);
-  particles[i].pressure = params.stiffness * (particles[i].density - params.restDensity);
-  particles[i].pressure += params.nearStiffness * nearDensity;
+  particles[i].nearPressure = params.nearStiffness * nearDensity;
+  particles[i].pressure = params.stiffness * max(density - params.restDensity, 0.0);
 }
 
 @compute @workgroup_size(128)
@@ -117,52 +95,83 @@ fn computeForcesAndIntegrate(@builtin(global_invocation_id) global_id: vec3u) {
   var force: vec2f = vec2f(0.0);
   let myPos = particles[i].pos;
   let myVel = particles[i].vel;
-  let myDensity = particles[i].density;
-  let myPressure = particles[i].pressure;
+  let myPres = particles[i].pressure;
+  let myNearPres = particles[i].nearPressure;
   let h = params.smoothingRadius;
-  let h2 = h * h;
+  let n = params.numParticles;
 
-  // SPH forces
-  for (var j = 0u; j < params.numParticles; j = j + 1u) {
+  // SPH forces (original simple kernel)
+  for (var j = 0u; j < n; j = j + 1u) {
     if j == i { continue; }
     let diff = myPos - particles[j].pos;
-    let r2 = dot(diff, diff);
-    if r2 < h2 && r2 > 0.000001 {
-      let r = sqrt(r2);
-      let dir = diff / r;
-      let pressureForce = -dir * (myPressure + particles[j].pressure) / (2.0 * particles[j].density) * spikyGradient(r, h);
-      force += pressureForce;
-      let viscForce = params.viscosity * (particles[j].vel - myVel) / particles[j].density * viscosityLaplacian(r, h);
-      force += viscForce;
+    let dist = length(diff);
+    let q = q1(dist, h);
+    if q > 0.0 && dist > 0.0001 {
+      let dir = diff / dist;
+      let q2 = q * q;
+      let pressureF = (myPres + particles[j].pressure) * q + (myNearPres + particles[j].nearPressure) * q2;
+      force += dir * pressureF;
     }
   }
 
-  // Spring forces
-  for (var si = 0u; si < params.numSprings; si = si + 1u) {
-    let sp = springs[si];
-    if sp.i == i {
-      let dp = particles[sp.j].pos - myPos;
-      let dist = length(dp);
-      if dist > 0.0001 {
-        let dir = dp / dist;
-        let springForce = dir * sp.restLength * params.springStiffness * (dist - sp.restLength);
-        force += springForce;
+  // Viscosity (original: only opposing velocity)
+  for (var j = 0u; j < n; j = j + 1u) {
+    if j == i { continue; }
+    let diff = myPos - particles[j].pos;
+    let dist = length(diff);
+    let q = q1(dist, h);
+    if q > 0.0 && dist > 0.0001 {
+      let dir = diff / dist;
+      let relVel = dot(myVel - particles[j].vel, dir);
+      if relVel > 0.0 {
+        let clamped = min(relVel, params.maxCollisionVelocity);
+        let viscForce = q * (params.viscosityA + params.viscosityB * clamped) * clamped;
+        force -= dir * viscForce;
       }
     }
-    if sp.j == i {
-      let dp = particles[sp.i].pos - myPos;
-      let dist = length(dp);
-      if dist > 0.0001 {
-        let dir = dp / dist;
-        let springForce = dir * sp.restLength * params.springStiffness * (dist - sp.restLength);
-        force += springForce;
+  }
+
+  // Spring forces (GPU neighbor detection via restLengths)
+  let connectR = params.springConnectRadius;
+  let breakR = params.springBreakRadius;
+  let nSq = params.numParticlesSq;
+  for (var j = 0u; j < n; j = j + 1u) {
+    if j == i { continue; }
+    let rl = restLengths[i * n + j];
+    if rl > 0.0 {
+      let diff = myPos - particles[j].pos;
+      let dist = length(diff);
+      if dist < breakR && dist > 0.0001 {
+        if dist < connectR {
+          let dir = diff / dist;
+          let springForce = dir * params.springStiffness * (rl - dist);
+          force -= springForce;
+        }
+        // Spring rest-length creep (sticky / soft spring)
+        let idx = i * n + j;
+        if i < j {
+          let dFromRest = dist - rl;
+          let stretchThresh = rl * params.springStretchThreshold;
+          let compressThresh = -rl * params.springCompressThreshold;
+          if dFromRest > stretchThresh {
+            let newRl = rl + rl * params.springStretchSpeed * (dFromRest - stretchThresh) * params.dt;
+            restLengths[idx] = max(newRl, 0.001);
+          } else if dFromRest < compressThresh {
+            let newRl = rl + rl * params.springCompressSpeed * (dFromRest - compressThresh) * params.dt;
+            restLengths[idx] = max(newRl, 0.001);
+          }
+          // Break if too stretched
+          if dist > params.maxSpringLength {
+            restLengths[idx] = 0.0;
+          }
+        }
       }
     }
   }
 
   // User control force
   if (length(params.controlDir) > 0.001) {
-    force += params.controlDir * params.controlStrength * myDensity;
+    force += params.controlDir * params.controlStrength;
   }
 
   // Impulse
@@ -176,39 +185,40 @@ fn computeForcesAndIntegrate(@builtin(global_invocation_id) global_id: vec3u) {
   }
 
   // Gravity
-  force += params.gravity * myDensity;
+  force += params.gravity;
 
   // Rigid body collision
   for (var ri = 0u; ri < params.numRigidBodies; ri = ri + 1u) {
     let rb = rigidBodies[ri];
-    if rb.shapeType == 0u {  // box
-      let d = pointToBoxDist(myPos, rb.pos, rb.halfSize);
-      if d < h && d > 0.0 {
-        let normal = myPos - rb.pos;
-      let absN = abs(normal);
-      let overlap = rb.halfSize - abs(normal);
-      var rebound: vec2f = normal;
-      if overlap.x < overlap.y {
-        rebound.x = sign(normal.x) * (h - d);
-        rebound.y = 0.0;
-      } else {
-        rebound.y = sign(normal.y) * (h - d);
-        rebound.x = 0.0;
-      }
-      force += normalize(rebound) * params.stiffness * (h - d) / h;
+    if rb.shapeType == 0u {
+      let delta = myPos - rb.pos;
+      let d = abs(delta) - rb.halfSize;
+      if d.x > 0.0 && d.y > 0.0 {
+        let dist = length(max(d, vec2f(0.0)));
+        if dist < h {
+          var rebound: vec2f = delta;
+          if d.x < d.y {
+            rebound.x = sign(delta.x) * (h - dist);
+            rebound.y = 0.0;
+          } else {
+            rebound.y = sign(delta.y) * (h - dist);
+            rebound.x = 0.0;
+          }
+          force += normalize(rebound) * params.stiffness * (h - dist) / h;
+        }
       }
     }
   }
 
   // Integration
-  var newVel = myVel + (force / myDensity) * params.dt;
+  var newVel = myVel + force * params.dt;
   if (length(newVel) > params.maxVelocity) {
     newVel = normalize(newVel) * params.maxVelocity;
   }
 
   var newPos = myPos + newVel * params.dt;
 
-  // Wall collision
+  // Wall collision (boundary clamp)
   let damping = params.wallDamping;
   if newPos.x < params.boundaryMin.x { newPos.x = params.boundaryMin.x; newVel.x = -newVel.x * damping; }
   if newPos.x > params.boundaryMax.x { newPos.x = params.boundaryMax.x; newVel.x = -newVel.x * damping; }
@@ -251,6 +261,7 @@ struct Particle {
   vel: vec2f,
   density: f32,
   pressure: f32,
+  nearPressure: f32,
 };
 
 struct RenderParams {
@@ -259,7 +270,8 @@ struct RenderParams {
   threshold: f32,
   aspectRatio: f32,
   resolution: vec2f,
-  viewScale: f32,
+  cameraCenter: vec2f,
+  cameraZoom: f32,
 };
 
 @group(0) @binding(0) var<storage, read> particles: array<Particle>;
@@ -273,10 +285,9 @@ fn main(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
   let h = renderParams.smoothingRadius;
   let h2 = h * h;
   let aspect = renderParams.aspectRatio;
-  let vs = renderParams.viewScale;
 
   for (var i = 0u; i < renderParams.numParticles; i = i + 1u) {
-    let pPos = particles[i].pos / vs;
+    let pPos = (particles[i].pos - renderParams.cameraCenter) / renderParams.cameraZoom + 0.5;
     let dx = (uv.x - pPos.x) * aspect;
     let dy = uv.y - pPos.y;
     let r2 = dx * dx + dy * dy;

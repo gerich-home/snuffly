@@ -20,11 +20,20 @@ export class SPHSimulation {
   device: GPUDevice;
   numParticles: number;
   smoothingRadius = 0.07;
-  restDensity = 3.0;
-  stiffness = 80.0;
-  nearStiffness = 30.0;
-  viscosity = 0.2;
-  springStiffness = 0.5;
+  restDensity = 1;
+  stiffness = 0.02;
+  nearStiffness = 2;
+  viscosityA = 0.5;
+  viscosityB = 0.01;
+  springStiffness = 0.02;
+  springConnectRadius = 0.03;
+  springBreakRadius = 0.05;
+  springStretchThreshold = 0.5;
+  springCompressThreshold = 0.2;
+  springStretchSpeed = 0.1;
+  springCompressSpeed = 3;
+  maxCollisionVelocity = 2;
+  maxSpringLength = 0.05;
   wallDamping = 0.4;
   maxVelocity = 3.0;
   gravityX = 0;
@@ -46,46 +55,40 @@ export class SPHSimulation {
   controlDirY = 0;
   controlStrength = 0;
 
-  private maxSprings = 2000;
+  private particleStride = 28;
   private maxRigidBodies = 16;
 
   private particleBuffer!: GPUBuffer;
-  private springBuffer!: GPUBuffer;
+  private restLengthsBuffer!: GPUBuffer;
   private rigidBodyBuffer!: GPUBuffer;
   private uniformBuffer!: GPUBuffer;
-  private readbackBuffer!: GPUBuffer;
   private bindGroup!: GPUBindGroup;
   private pipelineDensity!: GPUComputePipeline;
   private pipelineIntegrate!: GPUComputePipeline;
   private particleBufferSize: number;
-  private uniformBufferSize = 128;
-  private springBufferSize: number;
+  private uniformBufferSize = 144;
   private rigidBodyBufferSize: number;
-  private springs: SpringData[] = [];
-  private rigidBodies: RigidBodyData[] = [];
 
   constructor(device: GPUDevice, numParticles: number) {
     this.device = device;
     this.numParticles = numParticles;
-    this.particleBufferSize = numParticles * 24;
-    this.springBufferSize = this.maxSprings * 16;
+    this.particleBufferSize = numParticles * this.particleStride;
     this.rigidBodyBufferSize = this.maxRigidBodies * 32;
   }
 
   async init() {
     this.createBuffers();
     this.createPipelines();
-    this.initReadback();
   }
 
   private createBuffers() {
     this.particleBuffer = this.device.createBuffer({
       size: this.particleBufferSize,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
-    this.springBuffer = this.device.createBuffer({
-      size: this.springBufferSize,
+    this.restLengthsBuffer = this.device.createBuffer({
+      size: this.numParticles * this.numParticles * 4,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
@@ -98,11 +101,6 @@ export class SPHSimulation {
       size: this.uniformBufferSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-
-    this.readbackBuffer = this.device.createBuffer({
-      size: this.particleBufferSize,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    });
   }
 
   private createPipelines() {
@@ -112,7 +110,7 @@ export class SPHSimulation {
       entries: [
         { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
       ],
     });
@@ -136,36 +134,30 @@ export class SPHSimulation {
       entries: [
         { binding: 0, resource: { buffer: this.particleBuffer } },
         { binding: 1, resource: { buffer: this.uniformBuffer } },
-        { binding: 2, resource: { buffer: this.springBuffer } },
+        { binding: 2, resource: { buffer: this.restLengthsBuffer } },
         { binding: 3, resource: { buffer: this.rigidBodyBuffer } },
       ],
     });
-  }
-
-  private initReadback() {
-    const encoder = this.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(this.particleBuffer, 0, this.readbackBuffer, 0, this.particleBufferSize);
-    this.device.queue.submit([encoder.finish()]);
   }
 
   uploadParticles(data: Float32Array) {
     this.device.queue.writeBuffer(this.particleBuffer, 0, data);
   }
 
-  uploadSprings(springs: SpringData[]) {
-    this.springs = springs;
-    const data = new Float32Array(this.maxSprings * 4);
-    for (let i = 0; i < springs.length; i++) {
-      const o = i * 4;
-      data[o + 0] = springs[i].i;
-      data[o + 1] = springs[i].j;
-      data[o + 2] = springs[i].restLength;
+  uploadRestLengths(data: Float32Array) {
+    this.device.queue.writeBuffer(this.restLengthsBuffer, 0, data);
+  }
+
+  initRestLengthsFromSprings(springs: SpringData[]) {
+    const data = new Float32Array(this.numParticles * this.numParticles);
+    for (const sp of springs) {
+      data[sp.i * this.numParticles + sp.j] = sp.restLength;
+      data[sp.j * this.numParticles + sp.i] = sp.restLength;
     }
-    this.device.queue.writeBuffer(this.springBuffer, 0, data);
+    this.device.queue.writeBuffer(this.restLengthsBuffer, 0, data);
   }
 
   setRigidBodies(bodies: RigidBodyData[]) {
-    this.rigidBodies = bodies;
     const data = new Float32Array(this.maxRigidBodies * 8);
     for (let i = 0; i < bodies.length; i++) {
       const o = i * 8;
@@ -175,19 +167,10 @@ export class SPHSimulation {
       data[o + 3] = bodies[i].vy;
       data[o + 4] = bodies[i].halfW;
       data[o + 5] = bodies[i].halfH;
-      data[o + 6] = 0; // angle
+      data[o + 6] = 0;
       data[o + 7] = bodies[i].shapeType;
     }
     this.device.queue.writeBuffer(this.rigidBodyBuffer, 0, data);
-  }
-
-  addRigidBody(body: RigidBodyData) {
-    this.rigidBodies.push(body);
-    this.updateRigidBodyBuffer();
-  }
-
-  private updateRigidBodyBuffer() {
-    this.setRigidBodies(this.rigidBodies);
   }
 
   updateUniforms() {
@@ -196,32 +179,41 @@ export class SPHSimulation {
     const f32 = new Float32Array(buf);
 
     u32[0] = this.numParticles;
-    u32[1] = this.springs.length;
-    u32[2] = this.rigidBodies.length;
-    f32[3] = this.dt;
-    f32[4] = this.smoothingRadius;
-    f32[5] = this.restDensity;
-    f32[6] = this.stiffness;
-    f32[7] = this.nearStiffness;
-    f32[8] = this.viscosity;
-    f32[9] = this.springStiffness;
-    f32[10] = this.gravityX;
-    f32[11] = this.gravityY;
+    u32[1] = this.device === null ? 0 : 0;
+    u32[2] = this.impulseActive;
+    u32[3] = this.numParticles * this.numParticles;
+    f32[4] = this.dt;
+    f32[5] = this.smoothingRadius;
+    f32[6] = this.restDensity;
+    f32[7] = this.stiffness;
+    f32[8] = this.nearStiffness;
+    f32[9] = this.viscosityA;
+    f32[10] = this.viscosityB;
+    f32[11] = this.springStiffness;
     f32[12] = this.wallDamping;
-    f32[14] = this.boundaryMinX;
-    f32[15] = this.boundaryMinY;
-    f32[16] = this.boundaryMaxX;
-    f32[17] = this.boundaryMaxY;
-    f32[18] = this.maxVelocity;
-    f32[20] = this.impulseX;
-    f32[21] = this.impulseY;
-    f32[22] = this.impulseRadius;
-    f32[24] = this.impulseStrX;
-    f32[25] = this.impulseStrY;
-    u32[26] = this.impulseActive;
-    f32[28] = this.controlDirX;
-    f32[29] = this.controlDirY;
-    f32[30] = this.controlStrength;
+    f32[13] = this.maxVelocity;
+    f32[14] = this.impulseRadius;
+    f32[15] = this.controlStrength;
+    f32[16] = this.springConnectRadius;
+    f32[17] = this.springBreakRadius;
+    f32[18] = this.springStretchThreshold;
+    f32[19] = this.springCompressThreshold;
+    f32[20] = this.springStretchSpeed;
+    f32[21] = this.springCompressSpeed;
+    f32[22] = this.maxCollisionVelocity;
+    f32[23] = this.maxSpringLength;
+    f32[24] = this.gravityX;
+    f32[25] = this.gravityY;
+    f32[26] = this.boundaryMinX;
+    f32[27] = this.boundaryMinY;
+    f32[28] = this.boundaryMaxX;
+    f32[29] = this.boundaryMaxY;
+    f32[30] = this.impulseX;
+    f32[31] = this.impulseY;
+    f32[32] = this.impulseStrX;
+    f32[33] = this.impulseStrY;
+    f32[34] = this.controlDirX;
+    f32[35] = this.controlDirY;
 
     this.device.queue.writeBuffer(this.uniformBuffer, 0, buf);
   }
@@ -267,9 +259,6 @@ export class SPHSimulation {
     const wg = Math.ceil(this.numParticles / 128);
     const encoder = this.device.createCommandEncoder();
 
-    // Copy particles to readback buffer (for CPU next frame)
-    encoder.copyBufferToBuffer(this.particleBuffer, 0, this.readbackBuffer, 0, this.particleBufferSize);
-
     const p1 = encoder.beginComputePass();
     p1.setPipeline(this.pipelineDensity);
     p1.setBindGroup(0, this.bindGroup);
@@ -284,13 +273,6 @@ export class SPHSimulation {
 
     this.device.queue.submit([encoder.finish()]);
     this.clearImpulse();
-  }
-
-  async readParticles(): Promise<Float32Array> {
-    await this.readbackBuffer.mapAsync(GPUMapMode.READ);
-    const data = new Float32Array(this.readbackBuffer.getMappedRange().slice(0));
-    this.readbackBuffer.unmap();
-    return data;
   }
 
   getParticleBuffer() {
